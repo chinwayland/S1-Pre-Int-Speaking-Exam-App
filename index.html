@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Speaking Exam App - 4 Parts</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 900px;
+      padding: 16px;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      padding: 20px;
+      min-height: 70vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .home-screen {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      gap: 16px;
+    }
+
+    .app-title {
+      font-size: 1.8rem;
+      font-weight: 600;
+    }
+
+    .home-text {
+      font-size: 1rem;
+      max-width: 400px;
+      color: #555;
+    }
+
+    .timer {
+      font-size: 2.5rem;
+      text-align: center;
+      margin-bottom: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .part-label {
+      text-align: center;
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: #374151;
+    }
+
+    /* NEW: progress line */
+    .progress-line {
+      text-align: center;
+      font-size: 0.95rem;
+      color: #6b7280;
+      margin-bottom: 12px;
+      margin-top: 4px;
+    }
+
+    .question {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 16px;
+      font-size: clamp(1.4rem, 4vw, 2.4rem);
+      line-height: 1.4;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 12px 20px;
+      font-size: 1.05rem;
+      cursor: pointer;
+      font-weight: 500;
+      background: #2563eb;
+      color: white;
+      min-width: 140px;
+    }
+
+    button.secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    .hint-text {
+      text-align: center;
+      margin-top: 8px;
+      font-size: 0.9rem;
+      color: #6b7280;
+    }
+
+    @media (max-width: 600px) {
+      .card {
+        min-height: 80vh;
+        padding: 16px;
+      }
+
+      .timer {
+        font-size: 2rem;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <!-- Home Screen -->
+      <div id="homeScreen" class="home-screen">
+        <div class="app-title">Speaking Exam</div>
+        <p class="home-text">
+          Tap "Start Test" for each new student. You will see a timer and random questions from 4 parts.
+        </p>
+        <button id="startBtn">Start Test</button>
+      </div>
+
+      <!-- Exam Screen -->
+      <div id="examScreen" class="hidden">
+        <div class="timer" id="timer">00:00</div>
+
+        <div class="part-label" id="partLabel">Part 1</div>
+
+        <!-- NEW: Progress line -->
+        <div class="progress-line" id="progressLine">Part 1 of 4</div>
+
+        <div class="question" id="questionText"></div>
+
+        <div class="controls">
+          <button id="backHomeBtn" class="secondary" type="button">End Test</button>
+          <button id="nextQuestionBtn" type="button">Next Question</button>
+          <button id="nextPartBtn" type="button">Next Part</button>
+        </div>
+
+        <div class="hint-text">
+          Turn the screen so the student can read the question if needed.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Question lists from your document
+    const part1Questions = [
+      "Can you describe yourself using two words? Why did you choose these words?",
+      "Give me an example from your life that shows you are shy/confident/friendly.",
+      "What do your friends or family say about your personality?",
+      "Do you think being hard-working/patient/loyal is important? Why?",
+      "Tell me about a time when you were very creative/responsible/curious."
+    ];
+
+    const part2Questions = [
+      "What did you do last weekend?",
+      "Can you tell me about a special memory from your childhood?",
+      "Where did you go on your last holiday?",
+      "Who was your best friend when you were younger, and what did you do together?",
+      "Did you have a favorite teacher at school? Why?",
+      "What was your favorite game to play when you were a child?",
+      "Have you ever been to a wedding or a big celebration? What was it like?",
+      "What was the last movie you watched, and did you enjoy it?",
+      "Did you learn something interesting last year? What was it?",
+      "What was the best gift you’ve ever received? Why was it special?"
+    ];
+
+    const part3Questions = [
+      "What is your typical day like?",
+      "What is your favorite hobby or activity? Why do you like it?",
+      "What do you usually do after school or work?",
+      "Can you describe your home or where you live now?",
+      "What kind of food do you like to eat most days?",
+      "What is your favorite place to visit in your town or city? Why?",
+      "What do you do to relax when you feel tired or stressed?",
+      "Do you have any pets or animals at home? If not, would you like one?",
+      "What music or songs do you listen to most often?",
+      "Can you tell me about your family or the people you live with?"
+    ];
+
+    const part4Questions = [
+      "What are your plans for the next weekend or holiday?",
+      "What job would you like to have in the future? Why?",
+      "Where would you like to travel in the future, and why?",
+      "Do you want to live in the same city or country when you’re older? Why or why not?",
+      "What is one thing you want to learn to do in the future?",
+      "Do you think you will get married or have a family? Why or why not?",
+      "What kind of house or apartment would you like to live in one day?",
+      "Where do you think you will be in 10 years?",
+      "What is something exciting you hope to do next year?",
+      "If you could visit any country in the world, where would it be, and what would you do there?"
+    ];
+
+    const parts = [
+      { name: "Part 1: Personality", questions: part1Questions },
+      { name: "Part 2: Past Life", questions: part2Questions },
+      { name: "Part 3: Present Life", questions: part3Questions },
+      { name: "Part 4: Future Life", questions: part4Questions }
+    ];
+
+    let currentPartIndex = 0;
+    let seconds = 0;
+    let timerInterval = null;
+
+    const homeScreen = document.getElementById("homeScreen");
+    const examScreen = document.getElementById("examScreen");
+    const timerEl = document.getElementById("timer");
+    const partLabelEl = document.getElementById("partLabel");
+    const progressLineEl = document.getElementById("progressLine");
+    const questionTextEl = document.getElementById("questionText");
+
+    const startBtn = document.getElementById("startBtn");
+    const nextQuestionBtn = document.getElementById("nextQuestionBtn");
+    const nextPartBtn = document.getElementById("nextPartBtn");
+    const backHomeBtn = document.getElementById("backHomeBtn");
+
+    function startTimer() {
+      stopTimer();
+      seconds = 0;
+      updateTimerDisplay();
+      timerInterval = setInterval(() => {
+        seconds += 1;
+        updateTimerDisplay();
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
+
+    function updateTimerDisplay() {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      timerEl.textContent = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    }
+
+    function getRandomQuestion(list) {
+      return list[Math.floor(Math.random() * list.length)];
+    }
+
+    function showPart() {
+      const part = parts[currentPartIndex];
+      partLabelEl.textContent = part.name;
+
+      // update progress line
+      progressLineEl.textContent = `Part ${currentPartIndex + 1} of 4`;
+
+      questionTextEl.textContent = getRandomQuestion(part.questions);
+    }
+
+    function goHome() {
+      stopTimer();
+      seconds = 0;
+      updateTimerDisplay();
+      homeScreen.classList.remove("hidden");
+      examScreen.classList.add("hidden");
+    }
+
+    function startTest() {
+      currentPartIndex = 0;
+      homeScreen.classList.add("hidden");
+      examScreen.classList.remove("hidden");
+      startTimer();
+      showPart();
+    }
+
+    function nextQuestion() {
+      const part = parts[currentPartIndex];
+      questionTextEl.textContent = getRandomQuestion(part.questions);
+    }
+
+    function nextPart() {
+      if (currentPartIndex < parts.length - 1) {
+        currentPartIndex += 1;
+        showPart();
+      } else {
+        goHome();
+      }
+    }
+
+    startBtn.addEventListener("click", startTest);
+    nextQuestionBtn.addEventListener("click", nextQuestion);
+    nextPartBtn.addEventListener("click", nextPart);
+    backHomeBtn.addEventListener("click", goHome);
+
+    updateTimerDisplay();
+  </script>
+</body>
+</html>
