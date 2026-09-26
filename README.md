@@ -6,18 +6,15 @@ Repository: https://github.com/chinwayland/S1-Pre-Int-Speaking-Exam-App
 
 GitHub Pages: https://chinwayland.github.io/S1-Pre-Int-Speaking-Exam-App/
 
-The `codex/teacher-workflow` branch contains the proposed revision. GitHub Pages serves `main`; the revised app is not live until this branch is merged.
+The `codex/teacher-workflow` branch contains the proposed revision. GitHub Pages serves `main`; the shared revision needs separate server hosting. Merging it will not make the backend work on GitHub Pages.
 
 ## Run the app
 
-Open `index.html` in a modern browser with `styles.css`, `content.js`, `core.js`, and `app.js` in the same folder. A downloaded copy needs no network connection or installation. Alternatively, serve this folder with a static web server.
+This revision needs Node.js 24 and a running server. Set MANAGER_CODE to a private random secret of at least 24 characters, then run `node server.cjs` and open http://localhost:8766. Local roster data is stored in `.data/`, excluded from Git.
 
-1. Enter the exam session, class, student ID, and optional name.
-2. Ask one question and its follow-up in each of the four parts. The default time is one minute per part, with a suggested extra minute for grading and changing students. Set the same time for the whole class.
-3. Use **Finish and grade**, select four marks, and choose **Save and next student**.
-4. After each class, download a CSV and JSON backup from **Results**.
+A manager signs in, uploads the six-column spreadsheet, reviews it, publishes the roster, and creates a private access code for each teacher. Teachers sign in and select their class, date, and student. All student details come from the roster.
 
-**Teacher guide** includes the proposed administration routine, rubric, student instructions, and example answers for all 20 questions. The examples illustrate possible responses; they are not a required answer key for personal questions.
+Ask one question and follow-up in each of four parts, select four marks, and save. Download CSV and JSON grade backups after each class. See [shared roster setup](docs/shared-roster.md).
 
 ## Changes from last year
 
@@ -35,11 +32,11 @@ The timing, support rules, shorter question bank, and revised descriptors are **
 
 ## Records and backups
 
-Records stay in this browser's local storage. No grades, names, or notes are uploaded by this app. The static source and question bank can be viewed by anyone with access to the website; do not treat a public Pages site as a secure question bank.
+The roster is uploaded to the shared server. Teachers retrieve only their assigned students. Grades, notes, drafts, and completion labels remain in the current browser and are not synchronized between devices. The static source and question bank can be viewed by anyone with access to the website; do not treat a public Pages site as a secure question bank.
 
 Storage is specific to the browser and site address. A downloaded copy has separate storage from the website. Private browsing, browser cleanup, or moving to another computer can remove or hide records. Download a backup after each class and keep it in your normal secure teaching records location.
 
-CSV includes the currently selected session and opens in Excel. A JSON backup includes every saved session and can be restored. Restore adds new record IDs and keeps matching IDs already in the browser; it does not replace existing records. Totals are recalculated from the four marks. User-entered formula-like CSV values are escaped. Entirely numeric student IDs are prefixed with an apostrophe to keep leading zeros and long numbers as text; other CSV readers may show that apostrophe.
+CSV includes the currently selected session and opens in Excel. A JSON backup includes every saved session visible to the signed-in user and can be restored. Teachers see their own records; managers see all records in the current browser. Restore adds new record IDs and keeps matching IDs already in the browser; it does not replace existing records. Totals are recalculated from the four marks. User-entered formula-like CSV values are escaped. Entirely numeric student IDs are prefixed with an apostrophe to keep leading zeros and long numbers as text; other CSV readers may show that apostrophe.
 
 Use one tab for administering exams. Unfinished exams recover after refresh with the timer paused. Saved results remain separate from unfinished drafts. If browser storage fails, the app warns you and retains work in memory so you can download it before closing the page.
 
@@ -62,7 +59,7 @@ Criterion headers run horizontally and score levels run from zero downward in th
 Run the tests with Node.js:
 
 ```sh
-node --test tests/core.test.cjs
+node --test tests/*.test.cjs
 ```
 
-There are no package dependencies or build step. Publish by merging the reviewed branch into `main`; GitHub Pages is configured to serve the repository root.
+There are no npm dependencies or build step. SheetJS CE is bundled under its Apache 2.0 license. The Node server handles shared roster storage and authentication. `render.yaml` is an undeployed hosting proposal. Configure and check server hosting before replacing the current Pages app.

@@ -78,7 +78,7 @@
 
   function csvExport(records, criteria) {
     if (!Array.isArray(records) || !validCriteria(criteria)) throw new Error("Invalid results or criteria.");
-    const headers = ["Exam session", "Content version", "Student ID", "Student name", "Class", "Exam date", "Status", "Speaking time (seconds)",
+    const headers = ["Exam session", "Content version", "Student ID", "Student name", "Class", "Teacher", "Scheduled exam date", "Scheduled exam time", "Actual start", "Status", "Speaking time (seconds)",
       ...criteria.map((criterion) => criterion.label || criterion.id), "Total / 100", "Teacher note", "Questions shown"];
     const rows = records.map((record) => {
       const graded = record.status === "graded";
@@ -88,7 +88,7 @@
       // Keep all-numeric IDs as text in spreadsheet programs, preserving leading
       // zeros and long IDs. Other CSV readers may display this text apostrophe.
       const studentId = typeof record.studentId === "string" && /^\d+$/.test(record.studentId) ? "'" + record.studentId : record.studentId;
-      return [record.session, record.contentVersion || "2.0", studentId, record.studentName, record.className, record.date, record.status,
+      return [record.session, record.contentVersion || "2.0", studentId, record.studentName, record.className, record.teacher || "", record.examDate || "", record.examTime || "", record.date, record.status,
         record.durationSeconds, ...criteria.map((criterion) => graded ? record.scores?.[criterion.id] : ""),
         graded ? calculateTotal(record.scores, criteria) : "", record.notes, questions];
     });
@@ -127,7 +127,7 @@
     if (!validCriteria(criteria)) throw new Error("Invalid grading criteria.");
     const criterionIds = criteria.map((criterion) => criterion.id);
     const ids = new Set();
-    const recordFields = ["id", "session", "contentVersion", "studentId", "studentName", "className", "date", "status", "durationSeconds", "scores", "total", "notes", "questions"];
+    const recordFields = ["id", "session", "contentVersion", "studentId", "studentName", "className", "teacher", "examDate", "examTime", "date", "status", "durationSeconds", "scores", "total", "notes", "questions"];
     return data.records.map((record, index) => {
       const label = "Record " + (index + 1);
       requireObject(record, recordFields, label);
@@ -141,6 +141,12 @@
       const studentId = stringField(record, "studentId", 200, label);
       const studentName = stringField(record, "studentName", 200, label);
       const className = stringField(record, "className", 200, label);
+      const teacher = own(record,"teacher") ? stringField(record,"teacher",200,label) : "";
+      const examDate = own(record,"examDate") ? stringField(record,"examDate",10,label) : "";
+      const examTime = own(record,"examTime") ? stringField(record,"examTime",5,label) : "";
+      if(examDate && (!/^\d{4}-\d{2}-\d{2}$/.test(examDate) || !validDate(examDate))) throw new Error(label + " has an invalid scheduled exam date.");
+      if(examTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(examTime)) throw new Error(label + " has an invalid scheduled exam time.");
+      if([teacher,examDate,examTime].some(Boolean) && ![teacher,examDate,examTime].every(Boolean)) throw new Error(label + " has incomplete roster details.");
       const date = stringField(record, "date", 100, label, true);
       if (!validDate(date)) throw new Error(label + " has an invalid date.");
       if (record.status !== "graded" && record.status !== "absent") throw new Error(label + " has an invalid status.");
@@ -177,7 +183,7 @@
         };
       });
       const total = status === "graded" ? calculateTotal(scores, criteria) : null;
-      return { id, session, contentVersion, studentId, studentName, className, date, status, durationSeconds, scores, total, notes, questions };
+      return { id, session, contentVersion, studentId, studentName, className, teacher, examDate, examTime, date, status, durationSeconds, scores, total, notes, questions };
     });
   }
 

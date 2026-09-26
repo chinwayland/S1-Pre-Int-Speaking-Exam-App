@@ -179,3 +179,14 @@ test("real exam content has all four parts, twenty complete questions, and the o
   assert.equal(calculateTotal(record().scores, realContent.criteria), 93.3);
   assert.equal(validateBackup(backup([record()]), realContent)[0].contentVersion, "2.0");
 });
+
+test('roster metadata survives backups and appears separately from actual exam time in CSV', () => {
+  const content=require('../content.js');
+  const record={id:'roster-record',session:'S1',contentVersion:'2.0',studentId:'001',studentName:'Test Student',className:'Test Class',teacher:'Test Teacher',examDate:'2027-01-12',examTime:'09:05',date:'2027-01-12T01:06:00Z',status:'graded',durationSeconds:240,scores:{fluency:2,pronunciation:3,contribution:3,accuracy:3},total:0,notes:'',questions:[]};
+  const api=require('../core.js');
+  const restored=api.validateBackup({schemaVersion:1,records:[record]},content)[0];
+  assert.equal(restored.teacher,'Test Teacher');assert.equal(restored.examDate,'2027-01-12');assert.equal(restored.examTime,'09:05');assert.equal(restored.total,93.3);
+  const csv=api.csvExport([restored],content.criteria);assert.match(csv,/Scheduled exam date/);assert.match(csv,/"Test Teacher","2027-01-12","09:05","2027-01-12T01:06:00Z"/);
+  assert.throws(()=>api.validateBackup({schemaVersion:1,records:[{...record,examTime:'25:00'}]},content));
+  assert.throws(()=>api.validateBackup({schemaVersion:1,records:[{...record,teacher:''}]},content));
+});

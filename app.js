@@ -1,12 +1,13 @@
 (() => {
   'use strict';
-  const C = window.EXAM_CONTENT, K = window.EXAM_CORE;
+  const C = window.EXAM_CONTENT, K = window.EXAM_CORE, P = window.EXAM_PORTAL;
   const $ = id => document.getElementById(id);
   const RECORDS_KEY = 's1-speaking.records.v1';
   const DRAFT_KEY = 's1-speaking.draft.v1';
   const SETTINGS_KEY = 's1-speaking.settings.v1';
   let records = [], baselineRecords = [], draft = null, currentView = 'setup', storageBlocked = false, unsavedRecords = false;
-  let lastPersist = 0, lastPartAdvance = -Infinity;
+  let lastPersist = 0, lastPartAdvance = -Infinity, starting = false;
+  const visibleRecords = () => records.filter(P.canSeeRecord);
   const el = (tag, text, cls) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; };
   const stamp = () => new Date().toISOString();
   const uid = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -30,25 +31,27 @@
     document.body.classList.remove('question-only'); $('teacherViewBtn').hidden = true;
     document.querySelectorAll('.view').forEach(e => e.hidden = e.id !== view);
     document.querySelectorAll('[data-view]').forEach(b => { b.disabled = !!draft; if (b.dataset.view === view) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
-    $('resultCount').textContent = records.length;
+    $('resultCount').textContent = visibleRecords().length;
     if (view === 'results') renderResults();
     window.scrollTo(0, 0);
   }
-  function getStudent() {
+  async function getStudent() {
     if (!$('setupForm').reportValidity()) return null;
-    const s = Object.fromEntries(['session','className','studentId','studentName'].map(k => [k,$(k).value.trim()]));
-    if (!s.session || !s.studentId) { notify('Enter an exam session and a student ID.', true); return null; }
+    const s = await P.selectedFresh();
     if (records.some(r => r.session === s.session && r.studentId === s.studentId) && !confirm('This student already has a record in this session. Add another attempt? The earlier record will be kept.')) return null;
-    store(SETTINGS_KEY, {session:s.session,className:s.className,partSeconds:$('partSeconds').value});
+    store(SETTINGS_KEY, {partSeconds:$('partSeconds').value});
     return s;
   }
   function question() { const part = C.parts[draft.partIndex]; return part.questions.find(q => q.id === draft.order[part.id][draft.indices[draft.partIndex]]); }
   function recordQuestion() { const q = question(); draft.questions.push({part:C.parts[draft.partIndex].name,prompt:q.prompt,followUp:q.followUp}); }
   function studentLabel(d) { return [d.studentId,d.studentName,d.className].filter(Boolean).join(' · '); }
-  function startExam(event) {
-    event.preventDefault(); if(draft) return; const student = getStudent(); if (!student) return;
+  async function startExam(event) {
+    event.preventDefault(); if(draft || starting) return; starting=true;
+    try {
+    const student = await getStudent(); if (!student) return;
     draft = {...student,id:uid(),date:stamp(),contentVersion:C.version,phase:'exam',edit:false,partIndex:0,indices:C.parts.map(() => 0),order:K.shuffledQuestions(C.parts),elapsedMs:0,partStartedMs:0,runStarted:Date.now(),partSeconds:Number($('partSeconds').value),questions:[],scores:{},notes:''};
     recordQuestion(); notify(''); renderExam(); persistDraft(); show('exam');
+    } catch(error) { notify(error.message,true); } finally {starting=false;}
   }
   function renderExam() {
     const q = question();
@@ -82,7 +85,7 @@
   }
   function renderGrade() {
     $('gradeStudent').textContent=studentLabel(draft);
-    $('gradeSummary').textContent=`${draft.session} · ${clock(draft.elapsedMs)} speaking time · ${new Set(draft.questions.map(q=>q.part)).size} of 4 parts reached · Content ${draft.contentVersion}`;
+    $('gradeSummary').textContent=`${draft.session}${draft.teacher?' · '+draft.teacher:''}${draft.examDate?' · Scheduled '+draft.examDate+' '+draft.examTime:''} · ${clock(draft.elapsedMs)} speaking time · ${new Set(draft.questions.map(q=>q.part)).size} of 4 parts reached · Content ${draft.contentVersion}`;
     $('gradeForm').reset();
     C.criteria.forEach(c => { const score=draft.scores[c.id]; if(Number.isInteger(score)) document.querySelector(`input[name="${c.id}"][value="${score}"]`).checked=true; });
     $('notes').value=draft.notes;
@@ -97,7 +100,7 @@
     let local;
     try { local=K.validateBackup({schemaVersion:1,records:candidate},C); }
     catch(error) { notify(`Could not save: ${error.message}`,true); return {durable:false,conflict:true}; }
-    const keepInMemory = list => { records=list; unsavedRecords=true; $('resultCount').textContent=records.length; return {durable:false,conflict:false}; };
+    const keepInMemory = list => { records=list; unsavedRecords=true; $('resultCount').textContent=visibleRecords().length; return {durable:false,conflict:false}; };
     if(storageBlocked) return keepInMemory(local);
     let remote;
     try { const saved=read(RECORDS_KEY); remote=saved?K.validateBackup(saved,C):[]; }
@@ -122,39 +125,41 @@
     records=merged;
     const durable=store(RECORDS_KEY,{schemaVersion:1,records});
     if(durable) baselineRecords=JSON.parse(JSON.stringify(records));
-    unsavedRecords=!durable;$('resultCount').textContent=records.length;
+    unsavedRecords=!durable;$('resultCount').textContent=visibleRecords().length;
     return {durable,conflict:false};
   }
-  function cleanStudentInputs() { $('studentId').value=''; $('studentName').value=''; }
+  function cleanStudentInputs() { P.completed(); }
   function saveGrade(event) {
     event.preventDefault(); if(!draft || draft.phase!=='grade')return; const total=K.calculateTotal(draft.scores,C.criteria); if(total===null) { notify('Select all four marks before saving.',true); return; }
-    const record=Object.fromEntries(['id','session','studentId','studentName','className','date','contentVersion','notes','questions','scores'].map(k=>[k,draft[k]]));
+    const record=Object.fromEntries(['id','session','studentId','studentName','className','teacher','examDate','examTime','date','contentVersion','notes','questions','scores'].map(k=>[k,draft[k] ?? '']));
     record.status='graded'; record.durationSeconds=Math.round(draft.elapsedMs/1000); record.total=total;
     const index=records.findIndex(r=>r.id===record.id), editing=draft.edit,candidate=records.slice();
     if(index>=0) candidate[index]=record; else candidate.push(record);
     const saved=saveRecords(candidate,draft.edit?draft.editBaseRecord:null);if(saved.conflict)return;const durable=saved.durable;
     draft=null; persistDraft(); cleanStudentInputs(); show(editing?'results':'setup');
     notify(`${record.studentId}: ${total.toFixed(1)} / 100. ${durable?'Saved in this browser.':'Kept in memory only. Download a backup before closing.'}`,!durable);
-    if(!editing) $('studentId').focus();
+    if(!editing) $('studentSelect').focus();
   }
   function discard() {
     if(!draft || !confirm(draft.edit?'Discard these score changes?':'Discard this unfinished exam? No result will be saved.')) return;
     const editing=draft.edit; draft=null; persistDraft(); notify(''); show(editing?'results':'setup');
   }
-  function markAbsent() {
-    if(draft)return;
-    const s=getStudent(); if(!s || !confirm(`Record ${s.studentId} as absent with no grade?`)) return;
+  async function markAbsent() {
+    if(draft || starting)return;starting=true;
+    try {
+    const s=await getStudent(); if(!s || !confirm(`Record ${s.studentId} as absent with no grade?`)) return;
     const candidate=[...records,{...s,id:uid(),date:stamp(),status:'absent',durationSeconds:0,scores:Object.fromEntries(C.criteria.map(c=>[c.id,''])),total:null,notes:'',questions:[],contentVersion:C.version}];
     const saved=saveRecords(candidate);if(saved.conflict)return;const durable=saved.durable; cleanStudentInputs(); show('setup'); notify(`${s.studentId} marked absent. ${durable?'Saved in this browser.':'Download a backup before closing.'}`,!durable);
+    } catch(error) { notify(error.message,true); } finally {starting=false;}
   }
-  function filteredRecords() { return records.filter(r=>!$('sessionFilter').value || r.session===$('sessionFilter').value); }
+  function filteredRecords() { return visibleRecords().filter(r=>!$('sessionFilter').value || r.session===$('sessionFilter').value); }
   function renderResults() {
-    const selected=$('sessionFilter').value, sessions=[...new Set(records.map(r=>r.session))].sort();
+    const selected=$('sessionFilter').value, sessions=[...new Set(visibleRecords().map(r=>r.session))].sort();
     $('sessionFilter').replaceChildren(new Option('All sessions',''),...sessions.map(s=>new Option(s,s)));
     if(sessions.includes(selected)) $('sessionFilter').value=selected;
     const list=filteredRecords();
-    $('resultsSummary').textContent=`${list.length} records · ${list.filter(r=>r.status==='graded').length} graded · ${list.filter(r=>r.status==='absent').length} absent. CSV exports this view; backup includes all ${records.length} records.`;
-    $('emptyResults').hidden=list.length>0; $('resultsTable').hidden=list.length===0; $('csvBtn').disabled=list.length===0; $('backupBtn').disabled=records.length===0;
+    $('resultsSummary').textContent=`${list.length} records · ${list.filter(r=>r.status==='graded').length} graded · ${list.filter(r=>r.status==='absent').length} absent. CSV exports this view; backup includes your ${visibleRecords().length} visible records.`;
+    $('emptyResults').hidden=list.length>0; $('resultsTable').hidden=list.length===0; $('csvBtn').disabled=list.length===0; $('backupBtn').disabled=visibleRecords().length===0;
     $('resultsBody').replaceChildren(...list.slice().reverse().map(r=>{
       const row=el('tr'), student=el('td'), session=el('td'), status=el('td',r.status==='graded'?'Graded':'Absent'), total=el('td',r.total===null?'—':r.total.toFixed(1)), actions=el('td'), wrap=el('div',undefined,'row-actions');
       student.append(el('strong',r.studentId),el('span',r.studentName,'small')); session.append(el('strong',r.session),el('span',r.className,'small'),el('span',new Date(r.date).toLocaleString(),'small'));
@@ -182,7 +187,7 @@
       const unsafe=key=>['__proto__','prototype','constructor'].includes(key);
       if(!plain(d) || Object.keys(d).some(unsafe) || !['exam','grade'].includes(d.phase) || typeof d.edit!=='boolean' || d.contentVersion!==C.version || d.runStarted!==null || !Number.isFinite(d.elapsedMs) || d.elapsedMs<0 || !plain(d.scores))return false;
       if(Object.entries(d.scores).some(([key,value])=>!C.criteria.some(c=>c.id===key) || !Number.isInteger(value) || value<0 || value>3))return false;
-      const record=Object.fromEntries(['id','session','studentId','studentName','className','date','contentVersion','notes','questions'].map(key=>[key,d[key]]));
+      const record=Object.fromEntries(['id','session','studentId','studentName','className','teacher','examDate','examTime','date','contentVersion','notes','questions'].map(key=>[key,d[key] ?? '']));
       // Validate shared fields and question shapes without requiring a finished grade.
       K.validateBackup({schemaVersion:1,records:[{...record,status:'graded',durationSeconds:d.elapsedMs/1000,scores:Object.fromEntries(C.criteria.map(c=>[c.id,0]))}]},C);
       if(d.edit) {
@@ -207,26 +212,27 @@
   $('returnExamBtn').addEventListener('click',()=>{if(!draft || draft.edit || draft.phase!=='grade')return;draft.phase='exam';renderExam();persistDraft();show('exam');notify('The timer is paused. Resume when you are ready.');});
   $('sessionFilter').addEventListener('change',renderResults);
   $('csvBtn').addEventListener('click',()=>download(`speaking-results-${stamp().slice(0,10)}.csv`,K.csvExport(filteredRecords(),C.criteria),'text/csv;charset=utf-8'));
-  $('backupBtn').addEventListener('click',()=>{download(`speaking-backup-${stamp().slice(0,10)}.json`,JSON.stringify({schemaVersion:1,records},null,2),'application/json');unsavedRecords=false;});
+  $('backupBtn').addEventListener('click',()=>{download(`speaking-backup-${stamp().slice(0,10)}.json`,JSON.stringify({schemaVersion:1,records:visibleRecords()},null,2),'application/json');unsavedRecords=false;});
   $('importBtn').addEventListener('click',()=>$('importFile').click());
   $('importFile').addEventListener('change',async e=>{
     const file=e.target.files[0]; if(!file)return;
-    try{if(file.size>10*1024*1024)throw Error('The backup is larger than 10 MB.');const imported=K.validateBackup(JSON.parse(await file.text()),C),known=new Set(records.map(r=>r.id)),added=imported.filter(r=>!known.has(r.id));if(records.length+added.length>10000)throw Error('The combined record limit is 10,000.');if(!confirm(`Add ${added.length} records from this backup? ${imported.length-added.length} existing record IDs will be kept unchanged.`))return;const saved=saveRecords([...records,...added]);if(saved.conflict)return;const durable=saved.durable;renderResults();notify(`Restored ${added.length} records.${durable?'':' Browser storage failed; download a backup before closing.'}`,!durable);}catch(error){notify(`Could not restore the backup: ${error.message}`,true);}finally{e.target.value='';}
+    try{if(file.size>10*1024*1024)throw Error('The backup is larger than 10 MB.');const imported=K.validateBackup(JSON.parse(await file.text()),C);if(imported.some(r=>!P.canSeeRecord(r)))throw Error('This backup includes another teacher’s records. Ask a manager to restore it.');const known=new Set(records.map(r=>r.id)),added=imported.filter(r=>!known.has(r.id));if(records.length+added.length>10000)throw Error('The combined record limit is 10,000.');if(!confirm(`Add ${added.length} records from this backup? ${imported.length-added.length} existing record IDs will be kept unchanged.`))return;const saved=saveRecords([...records,...added]);if(saved.conflict)return;const durable=saved.durable;renderResults();notify(`Restored ${added.length} records.${durable?'':' Browser storage failed; download a backup before closing.'}`,!durable);}catch(error){notify(`Could not restore the backup: ${error.message}`,true);}finally{e.target.value='';}
   });
   window.addEventListener('beforeunload',event=>{if(draft)persistDraft();if(draft||unsavedRecords){event.preventDefault();event.returnValue='';}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)persistDraft();});
   window.addEventListener('storage',event=>{
     if(event.key!==RECORDS_KEY || draft || unsavedRecords || storageBlocked || !sameRecord(records,baselineRecords))return;
-    try { records=event.newValue?K.validateBackup(JSON.parse(event.newValue),C):[];baselineRecords=JSON.parse(JSON.stringify(records));$('resultCount').textContent=records.length;if(currentView==='results')renderResults(); }
+    try { records=event.newValue?K.validateBackup(JSON.parse(event.newValue),C):[];baselineRecords=JSON.parse(JSON.stringify(records));$('resultCount').textContent=visibleRecords().length;if(currentView==='results')renderResults(); }
     catch { storageError('Records changed in another tab but could not be read. Your current records remain available. Download a backup before closing.'); }
   });
   buildScoreFields();renderReference();
   try { const saved=read(RECORDS_KEY);if(saved)records=K.validateBackup(saved,C);baselineRecords=JSON.parse(JSON.stringify(records)); }
   catch { storageBlocked=true;storageError('Saved browser data could not be read. It has been kept unchanged. New work will stay in memory only; download a backup before closing.'); }
-  try { const s=read(SETTINGS_KEY);if(s){['session','className'].forEach(k=>{if(typeof s[k]==='string')$(k).value=s[k];});if(['45','60','90','120'].includes(String(s.partSeconds)))$('partSeconds').value=s.partSeconds;} }
+  try { const s=read(SETTINGS_KEY);if(s){if(['45','60','90','120'].includes(String(s.partSeconds)))$('partSeconds').value=s.partSeconds;} }
   catch { storageError(); }
   try { const saved=read(DRAFT_KEY);if(saved){if(validDraft(saved)){draft=saved;draft.runStarted=null;if(draft.phase==='exam')renderExam();else renderGrade();notify('Your unfinished exam has been restored. The timer is paused.');}else notify('The unfinished exam could not be restored. Saved results are unchanged.',true);} }
   catch { storageError(); }
   show(draft?draft.phase:'setup');
+  P.init({getRecords:()=>visibleRecords(),isBusy:()=>!!draft,notify,canUseDraft:user=>!draft || user.role==='manager' || window.EXAM_ROSTER.normalize(draft.teacher)===window.EXAM_ROSTER.normalize(user.teacher),onChange:()=>{show(currentView);}});
   setInterval(()=>{if(!draft||draft.phase!=='exam')return;updateTimer();if(Date.now()-lastPersist>2000){persistDraft();lastPersist=Date.now();}},250);
 })();

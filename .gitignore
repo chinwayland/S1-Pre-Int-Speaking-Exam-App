@@ -1,3 +1,7 @@
 .DS_Store
 *.log
 qa-output/
+.data/
+.env
+.env.*
+*.sqlite*
