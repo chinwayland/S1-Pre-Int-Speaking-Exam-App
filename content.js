@@ -11,7 +11,7 @@
   // These answers show one way to respond. Other relevant answers are welcome.
   // Judge the student's spoken English, not their opinions or life experiences.
   return {
-    version: "2.0",
+    version: "2.1",
     parts: [
       {
         id: "personality",
@@ -164,10 +164,10 @@
         label: "Fluency",
         weight: 20,
         descriptors: [
-          "You give no spoken answer.",
-          "You use single words or short phrases. Long pauses often stop your answers.",
-          "You use short sentences. You pause often and sometimes need help to continue.",
-          "You use short sentences and continue without help. Some pauses are fine."
+          "You hear no spoken answer.",
+          "You hear single words or short phrases. Long pauses often stop the student's answers.",
+          "You hear short sentences with frequent pauses. You sometimes need to help the student continue.",
+          "You hear short sentences, and the student continues without your help. Allow some thinking pauses."
         ]
       },
       {
@@ -175,10 +175,10 @@
         label: "Pronunciation",
         weight: 15,
         descriptors: [
-          "You say no clear words.",
-          "Many of your words are hard to understand. You often need to say them again.",
-          "Most of your words are clear. You sometimes need to say them again.",
-          "Your speech is easy to understand. A few unclear sounds are fine."
+          "You cannot understand any spoken words.",
+          "You find many words hard to understand and often need to ask the student to repeat them.",
+          "You understand most words but sometimes need to ask the student to repeat them.",
+          "You understand the speech easily. Allow a few unclear sounds."
         ]
       },
       {
@@ -186,10 +186,10 @@
         label: "Answer content",
         weight: 40,
         descriptors: [
-          "You give no information that answers the questions.",
-          "You give very little information that answers the questions, even with help.",
-          "You answer the questions with some useful information, but give few details.",
-          "You answer the main questions and follow-up questions. You add useful details or examples."
+          "You hear no information that answers the questions.",
+          "You hear very little relevant information, even when you help the student.",
+          "You hear answers with some relevant information but few details.",
+          "You hear answers to the main and follow-up questions, with useful details or examples."
         ]
       },
       {
@@ -197,10 +197,10 @@
         label: "Grammar and words",
         weight: 25,
         descriptors: [
-          "You use too little English to show your grammar and word choices.",
-          "Your grammar or word mistakes often make your meaning hard to understand.",
-          "You use simple grammar and words. Your meaning is usually clear, although you make mistakes.",
-          "You use simple grammar and words well. Small mistakes do not make your meaning unclear."
+          "You hear too little English to assess the student's grammar and word choices.",
+          "You often find the meaning hard to understand because of grammar or word-choice errors.",
+          "You usually understand the meaning. You hear simple grammar and words, with some errors.",
+          "You hear simple grammar and words used well. Small errors do not prevent you from understanding the meaning."
         ]
       }
     ]

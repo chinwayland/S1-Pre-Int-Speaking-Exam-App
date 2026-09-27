@@ -40,3 +40,9 @@ Use Node 24, set MANAGER_CODE to a random secret of at least 24 characters, and 
 For another host, configure DATA_DIR as persistent writable storage, NODE_ENV=production, PUBLIC_ORIGIN as the HTTPS site origin, and HOST/PORT for the platform. Serve through HTTPS.
 
 Roster updates use atomic file replacement. Only hashed teacher codes are persisted. Sessions expire after 12 hours; restarting signs users out. Persistent storage retains the roster and teacher codes across restarts. Retain the original spreadsheet and manager code securely. Lost server storage requires reuploading the roster and creating new teacher codes. Browser grade backups are separate.
+
+## Free alternative under consideration
+
+Cloudflare Workers with D1 offers free hosting and persistent database storage within its free quotas. As checked September 27, 2026, Workers allows 100,000 requests/day; D1 includes 5 million rows read/day, 100,000 rows written/day, and 5 GB total storage. This is a candidate for a small annual exam, subject to actual teacher/student volume and school-network testing. See [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/) and [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/).
+
+The current Node/file-storage backend would need adaptation to Workers and D1. No migration or Cloudflare deployment has been performed. Render's free web service cannot retain the current persistent roster file, so selecting its free plan alone is not sufficient.
