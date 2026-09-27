@@ -26,8 +26,8 @@ Create a gitignored `.dev.vars` file containing `MANAGER_CODE="a-long-random-loc
 
 ## First online deployment
 
-1. Run `npx wrangler login` and complete authorization in your Cloudflare account. Select the intended account if more than one is available. Keep the Workers Free plan.
-2. Run `npx wrangler d1 create s1-pre-int-speaking-exam`. Copy the returned database ID into `wrangler.jsonc`, replacing the all-zero placeholder. A database ID is configuration, not a credential. Keep D1 on the free account plan.
+1. Run `npx wrangler login --scopes account:read user:read workers:write workers_scripts:write d1:write` and complete authorization in your Cloudflare account. Select the intended account if more than one is available. Keep the Workers Free plan.
+2. Run `npx wrangler d1 create s1-pre-int-speaking-exam`. For a new installation, copy the returned database ID into `wrangler.jsonc`, replacing the configured database ID. The repository now contains the ID of the owner’s exam database. A database ID is configuration, not a credential. Keep D1 on the free account plan.
 3. Run `npm run db:remote` to apply the schema to the new database.
 4. Generate a fresh random manager code, store it in your password manager, then run `npx wrangler secret put MANAGER_CODE` and enter it at the hidden prompt. Do not reuse the local demonstration code.
 5. Run `npm run check:deploy`, then `npm run deploy`. Use the HTTPS workers.dev URL printed by Wrangler. No custom domain is necessary.

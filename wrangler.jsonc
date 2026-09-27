@@ -10,7 +10,7 @@
   "d1_databases": [{
     "binding": "DB",
     "database_name": "s1-pre-int-speaking-exam",
-    "database_id": "00000000-0000-0000-0000-000000000000",
+    "database_id": "1fca79ac-95bb-4a1f-9517-e4c3156d7cbc",
     "migrations_dir": "cloudflare/migrations"
   }],
   "triggers": { "crons": ["17 * * * *"] },
