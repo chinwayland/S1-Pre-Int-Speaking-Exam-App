@@ -81,7 +81,7 @@
       const file=event.target.files[0];if(!file)return;
       $('rosterReview').hidden=false;$('publishRosterBtn').disabled=true;$('uploadSummary').textContent='Reading spreadsheet…';$('rosterPreview').replaceChildren();$('rosterIssues').replaceChildren();preview=null;book=null;
       try{if(file.size>5*1024*1024)throw Error('Use a spreadsheet smaller than 5 MB.');if(!/\.(xlsx|xls|csv)$/i.test(file.name))throw Error('Choose an .xlsx, .xls, or .csv file.');
-        book=window.XLSX.read(await file.arrayBuffer(),{type:'array',raw:true,cellDates:false,cellNF:true,sheetRows:10002});
+        book=window.XLSX.read(await file.arrayBuffer(),{type:'array',raw:true,cellDates:false,cellNF:true,sheetRows:1002});
         const names=book.SheetNames.filter((name,i)=>!book.Workbook?.Sheets?.[i]?.Hidden);if(!names.length)throw Error('No visible worksheets were found.');
         $('worksheetSelect').replaceChildren(...names.map(name=>new Option(name,name)));reviewSheet();
       }catch(error){$('uploadSummary').textContent=`Could not read this file: ${error.message}`;}finally{event.target.value='';}

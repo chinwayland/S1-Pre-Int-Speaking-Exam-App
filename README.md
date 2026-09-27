@@ -10,7 +10,7 @@ The `codex/teacher-workflow` branch contains the proposed revision. GitHub Pages
 
 ## Run the app
 
-This revision needs Node.js 24 and a running server. Set MANAGER_CODE to a private random secret of at least 24 characters, then run `node server.cjs` and open http://localhost:8766. Local roster data is stored in `.data/`, excluded from Git.
+Production uses Cloudflare Workers and D1 on the free plan. See [Cloudflare setup](docs/cloudflare-setup.md). For the existing local Node preview, use Node.js 24 and a running server. Set MANAGER_CODE to a private random secret of at least 24 characters, then run `node server.cjs` and open http://localhost:8766. Local roster data is stored in `.data/`, excluded from Git.
 
 A manager signs in, uploads the six-column spreadsheet, reviews it, publishes the roster, and creates a private access code for each teacher. Teachers sign in and select their class, date, and student. All student details come from the roster.
 
@@ -62,4 +62,4 @@ Run the tests with Node.js:
 node --test tests/*.test.cjs
 ```
 
-There are no npm dependencies or build step. SheetJS CE is bundled under its Apache 2.0 license. The Node server handles shared roster storage and authentication. `render.yaml` is an undeployed hosting proposal. Configure and check server hosting before replacing the current Pages app.
+Cloudflare deployment uses Wrangler as a development dependency and an explicit public-asset build. SheetJS CE is bundled under its Apache 2.0 license. The Worker and D1 handle shared roster storage and authentication; the Node server remains available for local previews. GitHub Pages continues to serve the original app.

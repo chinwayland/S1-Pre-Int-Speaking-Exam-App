@@ -34,3 +34,9 @@ All 29 automated tests passed: 16 scoring/content/metadata checks, eight spreads
 Browser verification used a synthetic three-student XLSX: manager upload, preview, publication, code creation, and teacher sign-in. Teacher A saw only their two students and no manager controls. Selecting student 001235 populated the schedule without typing, completed four parts, saved 93.3, and selected the next pending student. The saved student was marked graded in that browser.
 
 Hosting is prepared but not deployed or tested on the school network. Shared grade storage is not implemented. Only synthetic records were used.
+
+## Cloudflare migration (September 27, 2026)
+
+All 34 tests passed. Five additional tests execute the Worker's SQL through SQLite: a 400-student roster across eight teachers; concurrent publication conflicts and invalid uploads; teacher-code rotation/removal and manager-secret changes; origin checks, secure cookies, logout and private-file denial; session expiry, hashed credentials, rate limits and scheduled cleanup.
+
+Wrangler's actual local workerd/D1 runtime also accepted 400 synthetic students, returned exactly 50 assigned students to a teacher, and denied that teacher the manager API. The schema migration and deployment dry run succeeded. Browser checks confirmed manager sign-in, all 400 students available through teacher/class selectors, and the updated teacher-facing rubric. No browser console errors were reported. Production Cloudflare deployment and school-network access still require verification.

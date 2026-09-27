@@ -10,7 +10,7 @@ Use these six headers in row 1, in any order. Every field is required.
 | --- | --- | --- | --- | --- | --- |
 | Test Teacher A | Class 1 | Example Student | 001234 | 2027-01-12 | 09:00 |
 
-Accepts XLSX, XLS, and CSV up to 5 MB and 10,000 students. Select the appropriate worksheet. Use consistent teacher names. Store IDs as text in Excel before entering them, especially long IDs. Native Excel dates/times are supported; text dates should use YYYY-MM-DD and times HH:mm. Times use school-local time.
+Accepts XLSX, XLS, and CSV up to 5 MB and 1,000 students. Select the appropriate worksheet. Use consistent teacher names. Store IDs as text in Excel before entering them, especially long IDs. Native Excel dates/times are supported; text dates should use YYYY-MM-DD and times HH:mm. Times use school-local time.
 
 Sign in as Manager, upload, review the preview and session label, then publish. Correct all validation errors first. Missing fields, duplicate IDs, conflicting slots for one teacher, invalid dates/times, formulas, and unsafe numeric IDs prevent publication. Publication replaces the entire active roster; it does not erase browser grades. Keep the source spreadsheet and use a distinct session label each year.
 
@@ -18,31 +18,12 @@ Generate an access code for each teacher and share it privately. Codes appear on
 
 Grades, drafts, and completion labels remain in the current browser. Switching devices retrieves the roster but not grades. Teachers must download CSV and JSON backups after each class. Use one exam tab. A manager sees all grades in their current browser, not other devices. Protect the computer profile and downloaded backups as teaching records.
 
-## Proposed hosting
+## Cloudflare hosting
 
-No service has been created. The included render.yaml proposes one Node web service in Singapore with 1 GB persistent storage. Checked September 26, 2026: US$7/month compute plus US$0.25/month disk, approximately US$7.25 before taxes and additional usage. See [Render pricing](https://render.com/pricing) and [persistent disk requirements](https://render.com/docs/disks). Free web services cannot provide this persistent disk.
+The selected deployment is Cloudflare Workers with D1 on the free plan. The app and API share one Cloudflare address; GitHub remains the source repository. See [deployment and recovery instructions](cloudflare-setup.md).
 
-After hosting is chosen and authorized:
+The roster supports up to 1,000 students per session, with a 1 MB validated roster limit. The expected cohort is about 400 pre-intermediate students, used for a few days each year. D1 holds the entire roster as a versioned snapshot so that publication is atomic; students still have individual IDs and teacher assignments. Teacher code hashes and expiring sign-in sessions also persist in D1.
 
-1. Connect this GitHub repository to Render and create a Blueprint from the reviewed branch. Review charges before creating resources. Automatic deployment is disabled in the proposal.
-2. Keep one server instance and the persistent disk at /var/data. Independent instances cannot share this file storage.
-3. Save the generated MANAGER_CODE from service environment settings in a password manager. Never commit it or include it in the roster.
-4. The app uses Render's HTTPS RENDER_EXTERNAL_URL. For a custom domain, set PUBLIC_ORIGIN to the exact HTTPS origin teachers use. TRUST_PROXY=1 is appropriate only behind the trusted hosting proxy.
-5. Test synthetic students and two teacher accounts on separate devices from the actual school network. Then publish the real roster and share the server URL.
-6. Keep the existing Pages app until the server is checked. GitHub Pages cannot run this backend.
+Cloudflare sessions last 12 hours and survive Worker restarts. Rotating a teacher code, removing a teacher, or changing the manager secret invalidates the affected sessions. Expired session and sign-in-limit entries are cleaned hourly. Sign-in attempts are capped at 120 per network per 10-minute window, allowing several teachers on one school network.
 
-The deployment file follows the [Blueprint specification](https://render.com/docs/blueprint-spec) but has not been deployed or validated through a Render account.
-
-## Local setup and recovery
-
-Use Node 24, set MANAGER_CODE to a random secret of at least 24 characters, and run `node server.cjs`. Generate a secret using Node's crypto.randomBytes(32).toString('base64url') and store it securely. Default local address: http://localhost:8766. Default data directory: .data, excluded from Git. Localhost is a preview, not a shared online address.
-
-For another host, configure DATA_DIR as persistent writable storage, NODE_ENV=production, PUBLIC_ORIGIN as the HTTPS site origin, and HOST/PORT for the platform. Serve through HTTPS.
-
-Roster updates use atomic file replacement. Only hashed teacher codes are persisted. Sessions expire after 12 hours; restarting signs users out. Persistent storage retains the roster and teacher codes across restarts. Retain the original spreadsheet and manager code securely. Lost server storage requires reuploading the roster and creating new teacher codes. Browser grade backups are separate.
-
-## Free alternative under consideration
-
-Cloudflare Workers with D1 offers free hosting and persistent database storage within its free quotas. As checked September 27, 2026, Workers allows 100,000 requests/day; D1 includes 5 million rows read/day, 100,000 rows written/day, and 5 GB total storage. This is a candidate for a small annual exam, subject to actual teacher/student volume and school-network testing. See [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/) and [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/).
-
-The current Node/file-storage backend would need adaptation to Workers and D1. No migration or Cloudflare deployment has been performed. Render's free web service cannot retain the current persistent roster file, so selecting its free plan alone is not sufficient.
+Keep the source spreadsheet and manager code securely. Browser grades and their backups remain separate from D1. Use the Cloudflare database export procedure in the setup guide for a server backup. Local Node previews continue to work with MANAGER_CODE and `node server.cjs`, using a separate .data directory.

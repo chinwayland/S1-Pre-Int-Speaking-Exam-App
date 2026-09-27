@@ -18,7 +18,7 @@
     return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
   }
   function validateRows(input){
-    if(!Array.isArray(input)||input.length===0||input.length>10000)throw Error('The roster must contain 1 to 10,000 students.');
+    if(!Array.isArray(input)||input.length===0||input.length>1000)throw Error('The roster must contain 1 to 1,000 students.');
     const issues=[],rows=[],ids=new Map(),slots=new Map();
     input.forEach((raw,index)=>{
       const rowNo=raw?.sourceRow||index+2;
@@ -37,7 +37,7 @@
   function parseSheet(book,sheetName,XLSX){
     const sheet=book.Sheets[sheetName];if(!sheet||!sheet['!ref'])throw Error('This worksheet is empty.');
     const range=XLSX.utils.decode_range(sheet['!fullref']||sheet['!ref']);
-    if(range.e.r>10000||range.e.c>49)throw Error('Use at most 10,000 student rows and 50 columns. Put headers in row 1.');
+    if(range.e.r>1000||range.e.c>49)throw Error('Use at most 1,000 student rows and 50 columns. Put headers in row 1.');
     const positions=new Map();for(let col=0;col<=range.e.c;col++){const cell=sheet[XLSX.utils.encode_cell({r:0,c:col})];const name=normalize(cell?.v);if(name){if(positions.has(name))throw Error(`Duplicate header: ${cell.v}.`);positions.set(name,col);}}
     const missing=headers.filter(h=>!positions.has(normalize(h)));if(missing.length)throw Error(`Missing headers in row 1: ${missing.join(', ')}.`);
     const issues=[],rawRows=[];

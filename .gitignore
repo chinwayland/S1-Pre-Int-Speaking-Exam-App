@@ -5,3 +5,8 @@ qa-output/
 .env
 .env.*
 *.sqlite*
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+.dev.vars.*
