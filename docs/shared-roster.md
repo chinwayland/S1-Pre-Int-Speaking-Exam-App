@@ -31,3 +31,5 @@ Keep the source spreadsheet and manager code securely. Confirmed grades and edit
 ### Spreadsheet column mapping
 
 Headers stay in row 1, but their names may vary. After uploading and choosing a worksheet, match each app field to a source column, then select **Review mapped rows**. Common header names are suggested. Each of the six fields requires a different source column; extra columns are ignored. Column letters distinguish duplicate or blank headers. Changing a mapping clears the preview and disables publication until reviewed again. Existing date, time, student ID, and duplicate checks still apply.
+
+Dates may also use month names, such as Thursday, June 25, 2026 or 25 Jun 2026. Converted text dates appear in the date conversion review. Numeric dates with ambiguous day/month order require correction; weekday/date mismatches are rejected. Missing years and student IDs are never inferred.

@@ -4,10 +4,21 @@
   const keys=['teacher','className','studentName','studentId','examDate','examTime'];
   const normalize=value=>String(value??'').normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase();
   function dateText(value){
-    const match=String(value??'').trim().match(/^(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})日?$/);
-    if(!match)throw Error('Use a real Excel date or YYYY-MM-DD for Exam Date.');
+    let text=String(value??'').normalize('NFKC').trim(),weekday=null;
+    const days=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+    const prefix=text.match(/^(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sun|Mon|Tue|Wed|Thu|Fri|Sat),?\s+/i);
+    if(prefix){weekday=days.findIndex(day=>day.startsWith(prefix[1].toLowerCase()));text=text.slice(prefix[0].length);}
+    const months=['january','february','march','april','may','june','july','august','september','october','november','december'];
+    const named=text.match(/^([a-z]+)\.?[\s-]+(\d{1,2})(?:st|nd|rd|th)?[,]?[\s-]+(\d{4})$/i);
+    const reverse=text.match(/^(\d{1,2})(?:st|nd|rd|th)?[\s-]+([a-z]+)\.?[,]?[\s-]+(\d{4})$/i);
+    if(named||reverse){const name=(named?named[1]:reverse[2]).toLowerCase(),month=months.findIndex(m=>m===name||m.slice(0,3)===name);if(month>=0)text=`${(named||reverse)[3]}-${month+1}-${named?named[2]:reverse[1]}`;}
+    const numeric=text.match(/^(\d{1,2})[/. -](\d{1,2})[/. -](\d{4})$/);
+    if(numeric){const a=Number(numeric[1]),b=Number(numeric[2]);if(a<=12&&b<=12&&a!==b)throw Error('Ambiguous Exam Date: use a month name or YYYY-MM-DD so day and month cannot be confused.');text=`${numeric[3]}-${a>12?b:a}-${a>12?a:b}`;}
+    const match=text.match(/^(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?$/);
+    if(!match)throw Error('Use a real Excel date, a month name (June 25, 2026), or YYYY-MM-DD for Exam Date.');
     const [,y,m,d]=match.map(Number),test=new Date(Date.UTC(y,m-1,d));
     if(y<1900||y>2200||test.getUTCFullYear()!==y||test.getUTCMonth()!==m-1||test.getUTCDate()!==d)throw Error('Exam Date is not a valid calendar date.');
+    if(weekday!==null&&test.getUTCDay()!==weekday)throw Error('The weekday does not match the Exam Date. Check the timetable.');
     return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
   }
   function timeText(value){
@@ -59,7 +70,7 @@
       const missing=headers.filter(h=>!positions.has(normalize(h)));if(missing.length)throw Error(`Missing headers in row 1: ${missing.join(', ')}.`);
       selected=headers.map(h=>positions.get(normalize(h)));
     }
-    const issues=[],rawRows=[];
+    const issues=[],rawRows=[],notices=[];
     for(let r=1;r<=range.e.r;r++){
       const cells=selected.map(c=>sheet[XLSX.utils.encode_cell({r,c})]);
       if(cells.every(c=>!c||String(c.v??'').trim()===''))continue;
@@ -83,11 +94,12 @@
           row.examTime=timeText(`${Math.floor(minutes/60)}:${String(minutes%60).padStart(2,'0')}`);return;
         }
         row[keys[i]]=String(cell.v).trim();
+        if(i===4){const original=row.examDate;row.examDate=dateText(original);if(row.examDate!==original)notices.push(`Row ${r+1}: ${original} → ${row.examDate}`);}
       });rawRows.push(row);}catch(error){issues.push(`Row ${r+1}: ${error.message}`);}
     }
     if(!rawRows.length&&!issues.length)throw Error('No student rows were found.');
     const checked=rawRows.length?validateRows(rawRows):{rows:[],issues:[]};issues.push(...checked.issues);
-    return {rows:issues.length?[]:checked.rows,issues};
+    return {rows:issues.length?[]:checked.rows,issues,notices};
   }
   function studentKey(row){return normalize(row.studentId);}
   return Object.freeze({headers,keys,normalize,dateText,timeText,validateRows,sheetColumns,suggestMapping,parseSheet,studentKey});

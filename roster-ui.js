@@ -60,7 +60,7 @@
     if(!user||!row||JSON.stringify({session:roster.session,...row})!==previous)throw Error('The roster changed. Check the selected student’s details, then start again.');
     return {session:roster.session,...row};
   }
-  function clearPreview(){preview=null;$('publishRosterBtn').disabled=true;$('rosterPreview').replaceChildren();$('rosterIssues').replaceChildren();}
+  function clearPreview(){preview=null;$('publishRosterBtn').disabled=true;$('rosterPreview').replaceChildren();$('rosterIssues').replaceChildren();$('dateConversions').replaceChildren();}
   function mapSheet(){
     clearPreview();$('fieldMapping').replaceChildren();$('reviewMappingBtn').disabled=true;
     try{
@@ -76,10 +76,11 @@
     }catch(error){$('uploadSummary').textContent=error.message;}
   }
   function reviewSheet(){
-    preview=null;$('publishRosterBtn').disabled=true;$('rosterPreview').replaceChildren();$('rosterIssues').replaceChildren();
+    preview=null;$('publishRosterBtn').disabled=true;$('rosterPreview').replaceChildren();$('rosterIssues').replaceChildren();$('dateConversions').replaceChildren();
     try{
       const mapping=Object.fromEntries(R.keys.map(key=>[key,$(`map-${key}`).value===''?null:Number($(`map-${key}`).value)]));
       preview=R.parseSheet(book,$('worksheetSelect').value,window.XLSX,mapping);
+      $('dateConversions').replaceChildren(...(preview.notices||[]).map(x=>element('li',x)));
       $('rosterIssues').replaceChildren(...preview.issues.slice(0,30).map(x=>element('li',x)));
       $('uploadSummary').textContent=preview.issues.length?`${preview.issues.length} issues found. Check the mapping or correct the spreadsheet and upload it again. Nothing has been published.`:`${preview.rows.length} students across ${new Set(preview.rows.map(r=>R.normalize(r.teacher))).size} teachers. Review before publishing.`;
       preview.rows.slice(0,10).forEach(row=>{const tr=element('tr','');tr.append(...R.keys.map(key=>element('td',row[key])));$('rosterPreview').append(tr);});
@@ -95,7 +96,7 @@
     $('teacherSelect').addEventListener('change',renderClasses);$('classSelect').addEventListener('change',renderDates);$('dateSelect').addEventListener('change',()=>renderStudents());$('studentSelect').addEventListener('change',renderSelection);
     $('rosterFile').addEventListener('change',async event=>{
       const file=event.target.files[0];if(!file)return;
-      $('rosterReview').hidden=false;$('publishRosterBtn').disabled=true;$('uploadSummary').textContent='Reading spreadsheet…';$('rosterPreview').replaceChildren();$('rosterIssues').replaceChildren();preview=null;book=null;
+      $('rosterReview').hidden=false;$('publishRosterBtn').disabled=true;$('uploadSummary').textContent='Reading spreadsheet…';$('rosterPreview').replaceChildren();$('rosterIssues').replaceChildren();$('dateConversions').replaceChildren();preview=null;book=null;
       try{if(file.size>5*1024*1024)throw Error('Use a spreadsheet smaller than 5 MB.');if(!/\.(xlsx|xls|csv)$/i.test(file.name))throw Error('Choose an .xlsx, .xls, or .csv file.');
         book=window.XLSX.read(await file.arrayBuffer(),{type:'array',raw:true,cellDates:false,cellNF:true,sheetRows:1002});
         const names=book.SheetNames.filter((name,i)=>!book.Workbook?.Sheets?.[i]?.Hidden);if(!names.length)throw Error('No visible worksheets were found.');

@@ -60,3 +60,7 @@ Authenticated grade saving and recovery were verified in the local Cloudflare ru
 ## Column mapping (October 3, 2026)
 
 All 42 automated tests passed. Added coverage for arbitrary/reordered headers, ignored extra columns, missing/duplicate/out-of-range mappings, conservative suggestions, duplicate labels, and preservation of Excel date/time and leading-zero ID handling with formula rejection.
+
+## Flexible timetable dates (October 3, 2026)
+
+All 43 tests passed. Read-only parsing of the supplied S2 timetable with the user’s mapped columns now converts all 11 named-month text dates; only row 43’s missing Student ID remains. Tests cover named months, unambiguous day/month numeric dates, invalid calendar dates, weekday mismatches, ambiguous numeric dates, and conversion notices. Source workbook and production roster were not modified.
