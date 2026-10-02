@@ -50,7 +50,7 @@
     return s;
   }
   function question() { const part = C.parts[draft.partIndex]; return part.questions.find(q => q.id === draft.order[part.id][draft.indices[draft.partIndex]]); }
-  function recordQuestion() { const q = question(); draft.questions.push({part:C.parts[draft.partIndex].name,prompt:q.prompt,followUp:q.followUp}); }
+  function recordQuestion() { const q = question(); if(!draft.questions.some(item=>item.part===C.parts[draft.partIndex].name&&item.prompt===q.prompt))draft.questions.push({part:C.parts[draft.partIndex].name,prompt:q.prompt,followUp:q.followUp}); }
   function studentLabel(d) { return [d.studentId,d.studentName,d.className].filter(Boolean).join(' · '); }
   async function startExam(event) {
     event.preventDefault(); if(draft || starting) return; starting=true;
@@ -65,8 +65,9 @@
     $('examStudent').textContent = studentLabel(draft); $('partLabel').textContent = `Part ${draft.partIndex+1} · ${C.parts[draft.partIndex].name}`;
     $('questionText').textContent = q.prompt; $('followUpText').textContent = q.followUp;
     $('partSteps').replaceChildren(...C.parts.map((p,i) => { const li = el('li',`${i+1} ${p.name}`,i<draft.partIndex?'done':''); if(i === draft.partIndex) li.setAttribute('aria-current','step'); return li; }));
-    $('replaceBtn').disabled = draft.indices[draft.partIndex] >= C.parts[draft.partIndex].questions.length-1;
-    $('replaceBtn').textContent = $('replaceBtn').disabled ? 'No more replacements' : 'Replace question';
+    const exhausted=draft.indices[draft.partIndex]>=draft.order[C.parts[draft.partIndex].id].length-1;
+    $('replaceBtn').disabled = false;
+    $('replaceBtn').textContent = exhausted ? 'Start over with this part' : 'Replace question';
     $('nextPartBtn').textContent = draft.partIndex === C.parts.length-1 ? 'Finish and grade →' : 'Next part →';
     updateTimer();
   }
@@ -242,14 +243,14 @@
         return original.id===d.id && original.status==='graded' && original.contentVersion===d.contentVersion;
       }
       if(records.some(r=>r.id===d.id))return false;
-      return Number.isInteger(d.partIndex) && d.partIndex>=0 && d.partIndex<C.parts.length && Number.isFinite(d.partStartedMs) && d.partStartedMs>=0 && d.partStartedMs<=d.elapsedMs && [45,60,90,120].includes(d.partSeconds) && Array.isArray(d.indices) && d.indices.length===C.parts.length && plain(d.order) && Object.keys(d.order).length===C.parts.length && Object.keys(d.order).every(key=>C.parts.some(p=>p.id===key)) && C.parts.every((p,i)=>Array.isArray(d.order[p.id]) && d.order[p.id].length===p.questions.length && new Set(d.order[p.id]).size===p.questions.length && d.order[p.id].every(id=>p.questions.some(q=>q.id===id)) && Number.isInteger(d.indices[i]) && d.indices[i]>=0 && d.indices[i]<p.questions.length);
+      return Number.isInteger(d.partIndex) && d.partIndex>=0 && d.partIndex<C.parts.length && Number.isFinite(d.partStartedMs) && d.partStartedMs>=0 && d.partStartedMs<=d.elapsedMs && [45,60,90,120].includes(d.partSeconds) && Array.isArray(d.indices) && d.indices.length===C.parts.length && plain(d.order) && Object.keys(d.order).length===C.parts.length && Object.keys(d.order).every(key=>C.parts.some(p=>p.id===key)) && C.parts.every((p,i)=>Array.isArray(d.order[p.id]) && (d.order[p.id].length===p.questions.length || (d.contentVersion!==C.version&&d.order[p.id].length===5)) && new Set(d.order[p.id]).size===d.order[p.id].length && d.order[p.id].every(id=>p.questions.some(q=>q.id===id)) && Number.isInteger(d.indices[i]) && d.indices[i]>=0 && d.indices[i]<d.order[p.id].length);
     } catch { return false; }
   }
   $('setupForm').addEventListener('submit',startExam); $('absentBtn').addEventListener('click',markAbsent);
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{if(!draft){notify('');show(b.dataset.view);if(b.dataset.view==='results')refreshGrades().catch(()=>{});}}));
   $('brand').addEventListener('click',e=>{e.preventDefault();if(!draft){notify('');show('setup');}});
   $('pauseBtn').addEventListener('click',()=>{if(!draft || draft.phase!=='exam')return;if(draft.runStarted===null){draft.runStarted=Date.now();persistDraft();updateTimer();}else pause();});
-  $('replaceBtn').addEventListener('click',()=>{if(!draft || draft.phase!=='exam' || $('replaceBtn').disabled)return;draft.indices[draft.partIndex]++;recordQuestion();renderExam();persistDraft();});
+  $('replaceBtn').addEventListener('click',()=>{if(!draft || draft.phase!=='exam' || $('replaceBtn').disabled)return;const part=C.parts[draft.partIndex],next=K.replaceQuestion(part,draft.order[part.id],draft.indices[draft.partIndex]);draft.order[part.id]=next.order;draft.indices[draft.partIndex]=next.index;recordQuestion();renderExam();persistDraft();});
   $('nextPartBtn').addEventListener('click',()=>{if(!draft || draft.phase!=='exam')return;const now=performance.now();if(now-lastPartAdvance<500)return;lastPartAdvance=now;if(draft.partIndex===C.parts.length-1){finish();return;}draft.partIndex++;draft.partStartedMs=elapsed();recordQuestion();renderExam();persistDraft();});
   $('earlyFinishBtn').addEventListener('click',finish); $('cancelBtn').addEventListener('click',discard); $('cancelGradeBtn').addEventListener('click',discard);
   $('questionViewBtn').addEventListener('click',()=>{document.body.classList.add('question-only');$('teacherViewBtn').hidden=false;}); $('teacherViewBtn').addEventListener('click',()=>{document.body.classList.remove('question-only');$('teacherViewBtn').hidden=true;});

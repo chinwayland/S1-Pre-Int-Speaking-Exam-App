@@ -68,3 +68,7 @@ All 43 tests passed. Read-only parsing of the supplied S2 timetable with the use
 ## Missing ID placeholders (October 3, 2026)
 
 All 44 tests passed, including multiple blank IDs and collisions with supplied placeholder-like IDs. Read-only parsing of the supplied S2 timetable now returns 373 students, zero issues, and 12 visible adjustments (11 dates and one missing ID). No roster was published during verification.
+
+## Forty-question bank (October 3, 2026)
+
+Version 2.2 provides ten complete question/follow-up/example sets per part. Additions draw on the original DOCX themes using A2 wording. Replacement tests traverse four rounds in every part, checking ten unique questions per round and no immediate repeat across round boundaries. Teachers explicitly restart after exhausting a round; restarting preserves the student, part, and timer. Question records retain distinct prompts to keep unlimited replacement rounds within backup limits. Older five-question draft orders remain recoverable.

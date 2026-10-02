@@ -63,3 +63,5 @@ node --test tests/*.test.cjs
 ```
 
 Cloudflare deployment uses Wrangler as a development dependency and an explicit public-asset build. SheetJS CE is bundled under its Apache 2.0 license. The Worker and D1 handle shared roster storage and authentication; the old Node server is retained for legacy roster tests. GitHub Pages continues to serve the original app.
+
+Each part contains 10 questions (40 total). Replacement follows a shuffled order without repeats. After all ten, **Start over with this part** reshuffles all ten for another round. Each distinct question shown is retained in the saved question record.

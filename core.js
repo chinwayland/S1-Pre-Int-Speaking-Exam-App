@@ -187,5 +187,12 @@
     });
   }
 
-  return Object.freeze({ calculateTotal, shuffledQuestions, csvExport, validateBackup });
+  function replaceQuestion(part, order, index, rng = Math.random) {
+    if(index < order.length-1)return {order:[...order],index:index+1};
+    const next=shuffledQuestions([part],rng)[part.id];
+    // Avoid showing the final question again immediately at the round boundary.
+    if(next.length>1&&next[0]===order[index])[next[0],next[1]]=[next[1],next[0]];
+    return {order:next,index:0};
+  }
+  return Object.freeze({ calculateTotal, shuffledQuestions, replaceQuestion, csvExport, validateBackup });
 });

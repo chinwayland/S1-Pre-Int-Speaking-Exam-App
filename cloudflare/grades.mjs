@@ -33,7 +33,7 @@ export async function gradesAPI({request,env,user,state,readBody,json}) {
   try{record=K.validateBackup({schemaVersion:1,records:[input.record]},C)[0];}catch(error){problem(400,error.message);}
   if(record.id!==id)problem(400,'Result ID does not match.');
   if(!record.teacher || !record.examDate || !record.examTime)problem(400,'This result needs teacher and scheduled exam details.');
-  if(!['2.0','2.1'].includes(record.contentVersion))problem(400,'Unsupported assessment version.');
+  if(!['2.0','2.1','2.2'].includes(record.contentVersion))problem(400,'Unsupported assessment version.');
   if(!manager&&R.normalize(record.teacher)!==user.teacher_key)problem(403,'You can save only your assigned students.');
   if(old){
    const before=JSON.parse(old.record);

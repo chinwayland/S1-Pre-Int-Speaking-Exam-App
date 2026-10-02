@@ -148,16 +148,16 @@ test("CSV preserves numeric student ID characters while keeping grades and durat
   assert.ok(csvExport([record({ studentId: "S001" })], criteria).includes('"S001"'));
 });
 
-test("real exam content has all four parts, twenty complete questions, and the original weights", () => {
+test("real exam content has all four parts, forty complete questions, and the original weights", () => {
   const realContent = require("../content.js");
-  assert.equal(realContent.version, "2.1");
+  assert.equal(realContent.version, "2.2");
   assert.deepEqual(realContent.parts.map((part) => part.id), ["personality", "past", "present", "future"]);
   const allQuestionIds = [];
   for (const part of realContent.parts) {
     assert.equal(typeof part.name, "string");
     assert.ok(part.name.trim());
-    assert.equal(part.questions.length, 5);
-    assert.deepEqual(part.questions.map((question) => question.id), [1, 2, 3, 4, 5].map((number) => part.id + "-" + number));
+    assert.equal(part.questions.length, 10);
+    assert.deepEqual(part.questions.map((question) => question.id), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((number) => part.id + "-" + number));
     for (const question of part.questions) {
       allQuestionIds.push(question.id);
       for (const field of ["prompt", "followUp", "example"]) {
@@ -166,7 +166,7 @@ test("real exam content has all four parts, twenty complete questions, and the o
       }
     }
   }
-  assert.equal(new Set(allQuestionIds).size, 20);
+  assert.equal(new Set(allQuestionIds).size, 40);
   assert.deepEqual(realContent.criteria.map(({ id, weight }) => ({ id, weight })), criteria.map(({ id, weight }) => ({ id, weight })));
   for (const criterion of realContent.criteria) {
     assert.ok(criterion.label.trim());
@@ -177,7 +177,7 @@ test("real exam content has all four parts, twenty complete questions, and the o
     }
   }
   assert.equal(calculateTotal(record().scores, realContent.criteria), 93.3);
-  assert.equal(validateBackup(backup([record()]), realContent)[0].contentVersion, "2.1");
+  assert.equal(validateBackup(backup([record()]), realContent)[0].contentVersion, "2.2");
 });
 
 test('roster metadata survives backups and appears separately from actual exam time in CSV', () => {
@@ -190,3 +190,4 @@ test('roster metadata survives backups and appears separately from actual exam t
   assert.throws(()=>api.validateBackup({schemaVersion:1,records:[{...record,examTime:'25:00'}]},content));
   assert.throws(()=>api.validateBackup({schemaVersion:1,records:[{...record,teacher:''}]},content));
 });
+test('replacement rounds use all ten questions without repeats and restart the same part',()=>{const api=require('../core.js'),content=require('../content.js');for(const part of content.parts){let order=api.shuffledQuestions([part],()=>0.4)[part.id],index=0;for(let round=0;round<4;round++){const seen=[order[index]];for(let n=1;n<10;n++){({order,index}=api.replaceQuestion(part,order,index,()=>0.4));seen.push(order[index]);}assert.equal(new Set(seen).size,10);assert.deepEqual([...seen].sort(),part.questions.map(q=>q.id).sort());const previous=order[index];({order,index}=api.replaceQuestion(part,order,index,()=>0.4));assert.equal(index,0);assert.notEqual(order[index],previous);}}});
