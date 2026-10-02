@@ -6,7 +6,7 @@
   async function api(url,method='GET',payload){
     const response=await fetch(url,{method,credentials:'same-origin',cache:'no-store',headers:method==='GET'?{}:{'Content-Type':'application/json','X-Exam-Request':'1'},body:payload===undefined?undefined:JSON.stringify(payload),signal:AbortSignal.timeout(15000)});
     if(!response.headers.get('content-type')?.includes('application/json'))throw Error('This address is the static preview. Open the shared server version to sign in.');
-    const data=await response.json();if(!response.ok){if(response.status===401&&url!=='/api/login')setUser(null);throw Error(data.error||'The server could not complete the request.');}return data;
+    const data=await response.json();if(!response.ok){if(response.status===401&&url!=='/api/login')setUser(null);throw Object.assign(Error(data.error||'The server could not complete the request.'),{status:response.status});}return data;
   }
   function setUser(next){
     user=next;hooks.notify?.('');$('accessPanel').hidden=!!user;$('signedInBar').hidden=!user;$('rosterManager').hidden=user?.role!=='manager';
@@ -40,7 +40,7 @@
   function renderClasses(){optionList('classSelect',[...new Set(roster.rows.filter(r=>r.teacher===$('teacherSelect').value).map(r=>r.className))].sort(),'No classes');renderDates();}
   function render(){
     optionList('teacherSelect',[...new Set(roster.rows.map(r=>r.teacher))].sort(),'No teachers');$('teacherSelect').disabled=user?.role==='teacher';
-    renderClasses();$('rosterStatus').textContent=roster.rows.length?`${roster.session} · ${roster.rows.length} assigned students. Dates and times use your school’s local time. Completion labels reflect grades saved in this browser.`:'No roster has been published yet. Ask your manager to upload it.';
+    renderClasses();$('rosterStatus').textContent=roster.rows.length?`${roster.session} · ${roster.rows.length} assigned students. Dates and times use your school’s local time. Completion labels reflect the latest shared results loaded.`:'No roster has been published yet. Ask your manager to upload it.';
   }
   function refresh(){
     if(!user||hooks.isBusy?.())return Promise.resolve();
@@ -101,5 +101,5 @@
     try{setUser(await api('/api/me'));await refresh();}catch(error){setUser(null);$('accessNotice').textContent=error.message==='Sign in to access the shared roster.'?'Use the access code provided by your manager.':error.message;}
     setInterval(()=>{if(user&&!hooks.isBusy?.()&&document.visibilityState==='visible')refresh().catch(error=>hooks.notify(`Could not refresh the roster: ${error.message}`,true));},30000);
   }
-  window.EXAM_PORTAL=Object.freeze({init,get user(){return user;},selectedFresh,completed:()=>renderStudents(true),changed:()=>renderStudents(),canSeeRecord:record=>user?.role==='manager'||(user?.role==='teacher'&&R.normalize(record.teacher)===R.normalize(user.teacher))});
+  window.EXAM_PORTAL=Object.freeze({init,api,get user(){return user;},selectedFresh,completed:async()=>{await refresh();renderStudents(true);},changed:()=>renderStudents(),canSeeRecord:record=>user?.role==='manager'||(user?.role==='teacher'&&R.normalize(record.teacher)===R.normalize(user.teacher))});
 })();

@@ -10,7 +10,7 @@ The `codex/teacher-workflow` branch contains the proposed revision. GitHub Pages
 
 ## Run the app
 
-Production uses Cloudflare Workers and D1 on the free plan. See [Cloudflare setup](docs/cloudflare-setup.md). For the existing local Node preview, use Node.js 24 and a running server. Set MANAGER_CODE to a private random secret of at least 24 characters, then run `node server.cjs` and open http://localhost:8766. Local roster data is stored in `.data/`, excluded from Git.
+Production uses Cloudflare Workers and D1 on the free plan. See [Cloudflare setup](docs/cloudflare-setup.md). For a local preview use Node.js 24, `npm ci`, `npm run db:local`, and `npm start`; see the setup guide for the private `.dev.vars` manager code. The shared-grade preview runs at http://localhost:8787. The old Node server is retained only for legacy roster tests.
 
 A manager signs in, uploads the six-column spreadsheet, reviews it, publishes the roster, and creates a private access code for each teacher. Teachers sign in and select their class, date, and student. All student details come from the roster.
 
@@ -30,17 +30,17 @@ Ask one question and follow-up in each of four parts, select four marks, and sav
 
 The timing, support rules, shorter question bank, and revised descriptors are **proposals for a classroom trial**, not requirements found in the old files. Review `docs/exam-review.md` before adopting them. No claim of equal difficulty across prompts has been established by a trial.
 
-## Records and backups
+## Shared results and recovery
 
-The roster is uploaded to the shared server. Teachers retrieve only their assigned students. Grades, notes, drafts, and completion labels remain in the current browser and are not synchronized between devices. The static source and question bank can be viewed by anyone with access to the website; do not treat a public Pages site as a secure question bank.
+Cloudflare D1 is the source of truth for rosters, confirmed grades, absence records, and grade edit history. Teachers can read and change records assigned to their teacher identity; managers can view and export all teachers' records. Each save recalculates the total on the server and rejects stale revisions instead of overwriting another device's changes.
 
-Storage is specific to the browser and site address. A downloaded copy has separate storage from the website. Private browsing, browser cleanup, or moving to another computer can remove or hide records. Download a backup after each class and keep it in your normal secure teaching records location.
+The app shows **Saved to Cloudflare** only after confirmation. If a connection fails, the current exam and pending request remain in local browser storage and a Retry button appears. Reopening the same site in the same browser recovers the draft. A retried confirmed request does not add a duplicate result or audit entry. Keep one exam tab open. An unfinished exam has not yet been shared with other devices.
 
-CSV includes the currently selected session and opens in Excel. A JSON backup includes every saved session visible to the signed-in user and can be restored. Teachers see their own records; managers see all records in the current browser. Restore adds new record IDs and keeps matching IDs already in the browser; it does not replace existing records. Totals are recalculated from the four marks. User-entered formula-like CSV values are escaped. Entirely numeric student IDs are prefixed with an apostrophe to keep leading zeros and long numbers as text; other CSV readers may show that apostrophe.
+CSV and JSON downloads refresh the shared results first. Export is stopped if the server cannot be reached, so an old cached list is not silently presented as current. Teachers export their own results; managers export all results, optionally filtered by session. Grade history records the teacher identity or Manager role, timestamp, revision, marks, notes, and deletion status. Manager codes are shared credentials, so the history does not distinguish people using the same code.
 
-Use one tab for administering exams. Unfinished exams recover after refresh with the timer paused. Saved results remain separate from unfinished drafts. If browser storage fails, the app warns you and retains work in memory so you can download it before closing the page.
+Existing browser-only results are preserved. On their original browser/site, use **Download previous browser results**, then **Restore backup** to upload missing record IDs. A result must match the active roster and session to be imported. Backups from the old localhost/GitHub Pages address must be downloaded there first; browsers do not share storage between addresses. Restore preserves existing shared IDs and reports a failure without rolling back earlier confirmed imports.
 
-The old URL was `https://chinwayland.github.io/2025-s1-speaking-exam-app/`. Replace old bookmarks and shared document links with the address above; do not rely on an old Pages link redirecting after a repository rename.
+Deletion hides a result from the current results list but retains its audit history in D1. Back up D1 separately using the procedure in `docs/cloudflare-setup.md`. Do not commit student data or grade exports to GitHub.
 
 ## Scoring
 
@@ -62,4 +62,4 @@ Run the tests with Node.js:
 node --test tests/*.test.cjs
 ```
 
-Cloudflare deployment uses Wrangler as a development dependency and an explicit public-asset build. SheetJS CE is bundled under its Apache 2.0 license. The Worker and D1 handle shared roster storage and authentication; the Node server remains available for local previews. GitHub Pages continues to serve the original app.
+Cloudflare deployment uses Wrangler as a development dependency and an explicit public-asset build. SheetJS CE is bundled under its Apache 2.0 license. The Worker and D1 handle shared roster storage and authentication; the old Node server is retained for legacy roster tests. GitHub Pages continues to serve the original app.

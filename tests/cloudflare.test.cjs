@@ -4,8 +4,8 @@ const {DatabaseSync}=require('node:sqlite');
 const fs=require('node:fs');
 // Exercise the Worker's actual SQL against SQLite, matching D1's prepared-statement API.
 function database(t){
-  const db=new DatabaseSync(':memory:');db.exec(fs.readFileSync(require.resolve('../cloudflare/migrations/0001_roster.sql'),'utf8'));t.after(()=>db.close());
-  const prepare=sql=>{let args=[];const statement={bind(...values){args=values;return statement;},async first(){return db.prepare(sql).get(...args)||null;},async run(){const result=db.prepare(sql).run(...args);return {meta:{changes:Number(result.changes)}};}};return statement;};
+  const db=new DatabaseSync(':memory:');for(const name of ['0001_roster.sql','0002_grades.sql'])db.exec(fs.readFileSync(require.resolve('../cloudflare/migrations/'+name),'utf8'));t.after(()=>db.close());
+  const prepare=sql=>{let args=[];const statement={bind(...values){args=values;return statement;},async first(){return db.prepare(sql).get(...args)||null;},async all(){return {results:db.prepare(sql).all(...args)};},async run(){const before=db.prepare('SELECT total_changes() AS n').get().n;db.prepare(sql).run(...args);return {meta:{changes:db.prepare('SELECT total_changes() AS n').get().n-before}};}};return statement;};
   return {raw:db,prepare,async batch(statements){db.exec('BEGIN');try{const results=[];for(const s of statements)results.push(await s.run());db.exec('COMMIT');return results;}catch(e){db.exec('ROLLBACK');throw e;}}};
 }
 const managerCode='synthetic-manager-code-never-for-deployment';
@@ -60,4 +60,48 @@ test('Cloudflare session expiry, persistent hashes, rate limits and scheduled cl
   assert.equal((await req('/api/login','POST',{role:'teacher',code:'bad'})).status,429);
   env.DB.raw.prepare('UPDATE login_limits SET expires = 0').run();let job;worker.scheduled({},env,{waitUntil(p){job=p;}});await job;
   assert.equal(env.DB.raw.prepare('SELECT count(*) AS n FROM sessions').get().n,0);assert.equal(env.DB.raw.prepare('SELECT count(*) AS n FROM login_limits').get().n,0);
+});
+
+const grade = (row,id='grade-001')=>({...row,id,session:'S1',contentVersion:'2.1',date:'2027-01-12T00:00:00Z',status:'graded',durationSeconds:240,scores:{fluency:2,pronunciation:3,contribution:3,accuracy:3},total:999,notes:'',questions:[]});
+async function gradeFixture(t){const f=await fixture(t);await f.req('/api/roster','PUT',{expectedRevision:0,session:'S1',rows:rows()},f.manager);const code=(await f.req('/api/teacher-code','POST',{teacher:'Teacher 0'},f.manager)).data.code;f.teacher=(await f.req('/api/login','POST',{role:'teacher',code})).cookie;return f;}
+test('shared grades recalculate totals, appear on another device, and stay private by teacher',async t=>{
+ const {req,manager,teacher}=await gradeFixture(t),record=grade(rows()[0]);
+ const saved=await req('/api/grades/'+record.id,'PUT',{record,expectedRevision:0,operationId:'save-operation-0001'},teacher);assert.equal(saved.status,200);assert.equal(saved.data.entry.record.total,93.3);
+ assert.equal((await req('/api/grades','GET',undefined,manager)).data.entries.length,1);
+ const code=(await req('/api/teacher-code','POST',{teacher:'Teacher 1'},manager)).data.code,other=(await req('/api/login','POST',{role:'teacher',code})).cookie;
+ assert.equal((await req('/api/grades','GET',undefined,other)).data.entries.length,0);
+ assert.equal((await req('/api/grades/'+record.id+'/history','GET',undefined,other)).status,404);
+ assert.equal((await req('/api/grades/'+record.id,'PUT',{record,expectedRevision:1,operationId:'save-operation-0002'},other)).status,404);
+ assert.equal((await req('/api/grades/'+record.id,'DELETE',{expectedRevision:1,operationId:'delete-operation-01'},other)).status,404);
+ assert.equal((await req('/api/grades')).status,401);
+});
+test('grade retry is idempotent and stale edits preserve audit history',async t=>{
+ const {req,manager,teacher}=await gradeFixture(t),record=grade(rows()[0]);
+ const input={record,expectedRevision:0,operationId:'save-operation-0001'};
+ assert.equal((await req('/api/grades/'+record.id,'PUT',input,teacher)).status,200);
+ assert.equal((await req('/api/grades/'+record.id,'PUT',input,teacher)).status,200);
+ const updated={...record,scores:{fluency:3,pronunciation:3,contribution:3,accuracy:3}};
+ const attempts=await Promise.all(['concurrent-edit-001','concurrent-edit-002'].map(operationId=>req('/api/grades/'+record.id,'PUT',{record:updated,expectedRevision:1,operationId},manager)));
+ assert.deepEqual(attempts.map(r=>r.status).sort(),[200,409]);
+ const history=(await req('/api/grades/'+record.id+'/history','GET',undefined,teacher)).data.entries;assert.equal(history.length,2);assert.equal(history[0].updatedBy,'Manager');assert.equal(history[0].record.total,100);assert.equal(history[1].updatedBy,'Teacher 0');assert.equal(history[1].record.total,93.3);
+ assert.equal((await req('/api/grades/'+record.id,'PUT',input,teacher)).status,409);
+});
+test('grade validation rejects forged identity, bad marks and roster changes',async t=>{
+ const {req,teacher}=await gradeFixture(t),record=grade(rows()[0]);
+ const save=r=>req('/api/grades/'+r.id,'PUT',{record:r,expectedRevision:0,operationId:'save-operation-0001'},teacher);
+ assert.equal((await save({...record,teacher:'Teacher 1'})).status,403);
+ assert.equal((await save({...record,studentName:'Changed name'})).status,409);
+ assert.equal((await save({...record,session:'Wrong year'})).status,409);
+ assert.equal((await save({...record,scores:{fluency:9}})).status,400);
+ assert.equal((await req('/api/grades','GET',undefined,teacher)).data.entries.length,0);
+});
+test('absence and deletion are shared and deletion retains its audit snapshots',async t=>{
+ const {req,manager,teacher}=await gradeFixture(t),record={...grade(rows()[0]),status:'absent',scores:{fluency:'',pronunciation:'',contribution:'',accuracy:''},total:null};
+ assert.equal((await req('/api/grades/'+record.id,'PUT',{record,expectedRevision:0,operationId:'save-operation-0001'},teacher)).status,200);
+ const remove={expectedRevision:1,operationId:'delete-operation-01'};
+ assert.equal((await req('/api/grades/'+record.id,'DELETE',remove,manager)).status,200);
+ assert.equal((await req('/api/grades/'+record.id,'DELETE',remove,manager)).status,200);
+ assert.equal((await req('/api/grades','GET',undefined,manager)).data.entries.length,0);
+ const history=(await req('/api/grades/'+record.id+'/history','GET',undefined,manager)).data.entries;
+ assert.equal(history.length,2);assert.equal(history[0].deleted,true);assert.equal(history[1].record.total,null);
 });

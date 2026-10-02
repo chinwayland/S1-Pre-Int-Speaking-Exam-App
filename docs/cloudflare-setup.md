@@ -6,7 +6,7 @@ Target: about 400 pre-intermediate students, a few exam days per year. The app s
 
 Cloudflare serves both the public app files and the authenticated API at one HTTPS address. The repository stays on GitHub; the original GitHub Pages version remains unchanged. Using one origin avoids cross-site session-cookie requirements. The public build contains only nine explicitly selected files, never secrets, database contents, tests, or backend code.
 
-D1 stores the complete validated roster as one versioned JSON snapshot, plus hashed teacher codes and separate expiring session rows. An atomic conditional update prevents conflicting publications and code rotations from overwriting each other. No read replicas are enabled. Grades and drafts still stay in each teacher's browser.
+D1 stores the complete validated roster as one versioned JSON snapshot, plus hashed teacher codes and separate expiring session rows. An atomic conditional update prevents conflicting publications and code rotations from overwriting each other. No read replicas are enabled. Confirmed grades and edit history are stored in D1. Drafts and pending saves stay in the current browser until confirmed.
 
 As checked September 27, 2026: Workers Free allows 100,000 requests/day. D1 Free includes 5 million rows read/day, 100,000 rows written/day, and 5 GB total storage. Limits are shared with other apps in the same account. Exceeding free daily limits causes errors, not automatic paid upgrades. See [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) and [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/).
 
@@ -44,6 +44,6 @@ Keep the source roster spreadsheet securely. For a database backup, run:
 npx wrangler d1 export DB --remote --output /absolute/private/path/exam-backup.sql
 ```
 
-The export contains student details and hashed access/session data. Store it outside the repository in your approved teaching-records location. A new D1 database can be initialized from the export using `wrangler d1 execute DB --remote --file /absolute/private/path/exam-backup.sql`; do not import it over an existing database without a recovery plan. Teachers must separately export their browser grades as CSV/JSON.
+The export contains student details and hashed access/session data. Store it outside the repository in your approved teaching-records location. A new D1 database can be initialized from the export using `wrangler d1 execute DB --remote --file /absolute/private/path/exam-backup.sql`; do not import it over an existing database without a recovery plan. Teachers and managers can also export their shared results as CSV/JSON.
 
 Each year, publish a new roster with a distinct exam session label and rotate teacher access codes as appropriate. Manager-code changes invalidate prior manager sessions. Teacher codes are shown only when generated; lost codes can be replaced. Scheduled cleanup removes expired sessions hourly. The app does not automatically delete the annual roster.

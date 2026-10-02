@@ -41,7 +41,7 @@ Random selection reduces administration but does not prove equivalent difficulty
 
 It does not validate the exam against an external assessment framework, establish a pass mark, or set institutional rules for accommodations, moderation, or retention. No such policies were supplied. It also does not create an actual class timetable because no current class roster or exam schedule was supplied.
 
-The revision includes an authenticated shared roster service: one manager upload supplies each teacher’s student selector. Grades remain in the current browser and need regular backups. The public question source remains readable. The shared version requires a running server and network access; online hosting has not been provisioned.
+The revision includes an authenticated shared roster service: one manager upload supplies each teacher’s student selector. Confirmed grades are stored in D1; local drafts and downloaded backups provide recovery. The public question source remains readable. The shared version requires a running server and network access; online hosting has not been provisioned.
 
 ## Review before adopting
 

@@ -5,8 +5,13 @@
   const RECORDS_KEY = 's1-speaking.records.v1';
   const DRAFT_KEY = 's1-speaking.draft.v1';
   const SETTINGS_KEY = 's1-speaking.settings.v1';
-  let records = [], baselineRecords = [], draft = null, currentView = 'setup', storageBlocked = false, unsavedRecords = false;
-  let lastPersist = 0, lastPartAdvance = -Infinity, starting = false;
+  let records = [], draft = null, currentView = 'setup', storageBlocked = false, unsavedRecords = false;
+  let lastPersist = 0, lastPartAdvance = -Infinity, starting = false, saving = false, gradesReady = false, gradeLoad = null;
+  let versions = new Map(), legacyRecords = [], gradeUser = '';
+  const PENDING_KEY = 's1-speaking.pending-grade.v1';
+  let pending = null;
+  const userKey = () => P.user ? P.user.role + ':' + (P.user.teacher || '') : '';
+  function syncStatus(text,error=false) { $('gradeSyncStatus').textContent=text; $('gradeSyncStatus').classList.toggle('error',error); $('retryGradeBtn').hidden=!pending || !P.canSeeRecord(pending.record); $('pendingBackupBtn').hidden=$('retryGradeBtn').hidden; $('discardPendingBtn').hidden=$('retryGradeBtn').hidden||!!draft; }
   const visibleRecords = () => records.filter(P.canSeeRecord);
   const el = (tag, text, cls) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; };
   const stamp = () => new Date().toISOString();
@@ -37,6 +42,8 @@
   }
   async function getStudent() {
     if (!$('setupForm').reportValidity()) return null;
+    if(pending) throw Error('Save or resolve the pending result before starting another exam.');
+    await refreshGrades();
     const s = await P.selectedFresh();
     if (records.some(r => r.session === s.session && r.studentId === s.studentId) && !confirm('This student already has a record in this session. Add another attempt? The earlier record will be kept.')) return null;
     store(SETTINGS_KEY, {partSeconds:$('partSeconds').value});
@@ -96,60 +103,99 @@
   }
   function updateTotal() { const total=K.calculateTotal(draft.scores,C.criteria); $('total').textContent=total===null?'—':total.toFixed(1); }
   const sameRecord = (a,b) => JSON.stringify(a) === JSON.stringify(b);
-  function saveRecords(candidate, expectedRecord = null) {
-    let local;
-    try { local=K.validateBackup({schemaVersion:1,records:candidate},C); }
-    catch(error) { notify(`Could not save: ${error.message}`,true); return {durable:false,conflict:true}; }
-    const keepInMemory = list => { records=list; unsavedRecords=true; $('resultCount').textContent=visibleRecords().length; return {durable:false,conflict:false}; };
-    if(storageBlocked) return keepInMemory(local);
-    let remote;
-    try { const saved=read(RECORDS_KEY); remote=saved?K.validateBackup(saved,C):[]; }
-    catch { storageBlocked=true;storageError('Browser records could not be read. They have been kept unchanged. New results stay in memory; download a backup before closing.');return keepInMemory(local); }
-    const baseMap=new Map(baselineRecords.map(r=>[r.id,r])),localMap=new Map(local.map(r=>[r.id,r])),remoteMap=new Map(remote.map(r=>[r.id,r]));
-    const conflicts=[],merged=[];
-    // An edit restored after a reload still refers to its original record.
-    if(expectedRecord && !sameRecord(remoteMap.get(expectedRecord.id),expectedRecord) && !sameRecord(remoteMap.get(expectedRecord.id),localMap.get(expectedRecord.id))) conflicts.push(expectedRecord.id);
-    for(const id of new Set([...localMap.keys(),...remoteMap.keys(),...baseMap.keys()])) {
-      const before=baseMap.get(id),ours=localMap.get(id),theirs=remoteMap.get(id);
-      let chosen;
-      if(sameRecord(ours,before)) chosen=theirs;
-      else if(sameRecord(theirs,before) || sameRecord(ours,theirs)) chosen=ours;
-      else { conflicts.push(id); continue; }
-      if(chosen) merged.push(chosen);
-    }
-    if(conflicts.length) {
-      notify('This record changed in another tab. Nothing was overwritten. Your exam remains open if you were grading. Cancel your changes and reload to review the latest record before editing again.',true);
-      return {durable:false,conflict:true};
-    }
-    if(merged.length>10000) { notify('The combined record limit is 10,000. Download a backup before removing old records.',true);return {durable:false,conflict:true}; }
-    records=merged;
-    const durable=store(RECORDS_KEY,{schemaVersion:1,records});
-    if(durable) baselineRecords=JSON.parse(JSON.stringify(records));
-    unsavedRecords=!durable;$('resultCount').textContent=visibleRecords().length;
-    return {durable,conflict:false};
+  async function refreshGrades() {
+    if(!P.user) return;
+    if(gradeLoad) return gradeLoad;
+    const owner=userKey();
+    gradeLoad=(async()=>{
+      const data=await P.api('/api/grades');
+      if(userKey()!==owner)return;
+      records=K.validateBackup({schemaVersion:1,records:data.entries.map(e=>e.record)},C);
+      versions=new Map(data.entries.map(e=>[e.record.id,e.revision])); gradesReady=true;
+      $('resultCount').textContent=visibleRecords().length; P.changed();
+      if(currentView==='results')renderResults();
+      syncStatus(pending?'Not saved to Cloudflare. Retry the pending result.':`Shared results updated ${new Date().toLocaleTimeString()}.`,!!pending);
+    })();
+    try {await gradeLoad;}catch(error){syncStatus('Could not refresh shared results. '+error.message,true);throw error;}finally{gradeLoad=null;}
   }
-  function cleanStudentInputs() { P.completed(); }
-  function saveGrade(event) {
-    event.preventDefault(); if(!draft || draft.phase!=='grade')return; const total=K.calculateTotal(draft.scores,C.criteria); if(total===null) { notify('Select all four marks before saving.',true); return; }
+  async function writeGrade(change) {
+    pending=change; store(PENDING_KEY,pending); unsavedRecords=true;
+    syncStatus('Saving to Cloudflare…');
+    const data=await P.api('/api/grades/'+encodeURIComponent(change.record.id),change.method,{record:change.record,expectedRevision:change.revision,operationId:change.operationId});
+    records=records.filter(r=>r.id!==data.entry.record.id);
+    if(!data.entry.deleted)records.push(data.entry.record);
+    versions.set(data.entry.record.id,data.entry.revision);
+    pending=null;store(PENDING_KEY,null);unsavedRecords=false;
+    syncStatus('Saved to Cloudflare.'); P.changed();
+    return data.entry;
+  }
+  async function saveRecords(candidate, expectedRecord=null) {
+    if(saving)return {conflict:true};
+    if(!gradesReady){notify('Load shared results before saving.',true);return {conflict:true};}
+    saving=true; document.querySelectorAll('#gradeForm input, #gradeForm textarea, #gradeForm button').forEach(e=>e.disabled=true);
+    try {
+      const validated=K.validateBackup({schemaVersion:1,records:candidate},C),changes=[];
+      for(const record of validated)if(!sameRecord(record,records.find(r=>r.id===record.id)))changes.push({record,method:'PUT'});
+      for(const record of records)if(!validated.some(r=>r.id===record.id))changes.push({record,method:'DELETE'});
+      // A restored draft may describe an already-confirmed write. Retrying it is safe.
+      if(!changes.length&&pending)changes.push({record:pending.record,method:pending.method});
+      for(const change of changes){
+        let revision=draft?.id===change.record.id ? (draft.edit ? draft.editRevision : 0) : (versions.get(change.record.id)||0);
+        const samePending=pending&&pending.record.id===change.record.id&&pending.method===change.method&&sameRecord(pending.record,change.record);
+        if(pending&&!samePending){
+          if(pending.record.id!==change.record.id || pending.method!==change.method)throw Error('Resolve the pending save before making another change.');
+          const confirmed=await writeGrade(pending);revision=confirmed.revision;
+          if(draft){draft.edit=true;draft.editRevision=revision;draft.editBaseRecord=confirmed.record;persistDraft();}
+        }
+        const next=samePending?pending:{...change,revision,operationId:uid()};
+        await writeGrade(next);
+      }
+      return {durable:true,conflict:false};
+    } catch(error) {
+      syncStatus('Not saved to Cloudflare. '+error.message,true);
+      notify('Your work is kept on this device for retry. '+error.message,true);
+      return {durable:false,conflict:true};
+    } finally {saving=false;document.querySelectorAll('#gradeForm input, #gradeForm textarea, #gradeForm button').forEach(e=>e.disabled=false);}
+  }
+  async function retryPending() {
+    if(!pending||saving||!P.canSeeRecord(pending.record))return;
+    if(draft?.phase==='grade'){await saveGrade({preventDefault(){}});return;}
+    saving=true;
+    try {await writeGrade(pending);await refreshGrades();notify('Saved to Cloudflare.');}
+    catch(error){syncStatus('Not saved to Cloudflare. '+error.message,true);}
+    finally{saving=false;}
+  }
+  async function history(id) {
+    try {
+      const data=await P.api('/api/grades/'+encodeURIComponent(id)+'/history');
+      $('gradeHistory').replaceChildren(el('h2','Edit history · '+(records.find(r=>r.id===id)?.studentId||id)),...data.entries.map(e=>el('p',`Revision ${e.revision} · ${new Date(e.updatedAt).toLocaleString()} · ${e.updatedBy} · ${e.deleted?'Deleted':e.record.status==='absent'?'Absent':e.record.total.toFixed(1)+' / 100'} · ${C.criteria.map(c=>c.label+': '+e.record.scores[c.id]).join(', ')}${e.record.notes?' · Note: '+e.record.notes:''}`)));
+      $('gradeHistory').hidden=false;
+    }catch(error){notify(error.message,true);}
+  }
+  async function cleanStudentInputs() { try{await P.completed();}catch(error){notify('Grade saved; roster refresh failed. '+error.message,true);} }
+  async function saveGrade(event) {
+    event.preventDefault(); if(!draft || draft.phase!=='grade' || saving)return; const total=K.calculateTotal(draft.scores,C.criteria); if(total===null) { notify('Select all four marks before saving.',true); return; }
     const record=Object.fromEntries(['id','session','studentId','studentName','className','teacher','examDate','examTime','date','contentVersion','notes','questions','scores'].map(k=>[k,draft[k] ?? '']));
     record.status='graded'; record.durationSeconds=Math.round(draft.elapsedMs/1000); record.total=total;
     const index=records.findIndex(r=>r.id===record.id), editing=draft.edit,candidate=records.slice();
     if(index>=0) candidate[index]=record; else candidate.push(record);
-    const saved=saveRecords(candidate,draft.edit?draft.editBaseRecord:null);if(saved.conflict)return;const durable=saved.durable;
-    draft=null; persistDraft(); cleanStudentInputs(); show(editing?'results':'setup');
-    notify(`${record.studentId}: ${total.toFixed(1)} / 100. ${durable?'Saved in this browser.':'Kept in memory only. Download a backup before closing.'}`,!durable);
+    const saved=await saveRecords(candidate,draft.edit?draft.editBaseRecord:null);if(saved.conflict)return;const durable=saved.durable;
+    draft=null; persistDraft(); await cleanStudentInputs(); show(editing?'results':'setup');
+    notify(`${record.studentId}: ${total.toFixed(1)} / 100. ${durable?'Saved to Cloudflare.':'Kept in memory only. Download a backup before closing.'}`,!durable);
     if(!editing) $('studentSelect').focus();
   }
   function discard() {
+    if(saving)return;
     if(!draft || !confirm(draft.edit?'Discard these score changes?':'Discard this unfinished exam? No result will be saved.')) return;
-    const editing=draft.edit; draft=null; persistDraft(); notify(''); show(editing?'results':'setup');
+    if(pending?.record.id===draft.id){pending=null;store(PENDING_KEY,null);unsavedRecords=false;}
+    const editing=draft.edit; draft=null; persistDraft(); notify(''); show(editing?'results':'setup');refreshGrades().catch(()=>{});
   }
   async function markAbsent() {
     if(draft || starting)return;starting=true;
     try {
     const s=await getStudent(); if(!s || !confirm(`Record ${s.studentId} as absent with no grade?`)) return;
     const candidate=[...records,{...s,id:uid(),date:stamp(),status:'absent',durationSeconds:0,scores:Object.fromEntries(C.criteria.map(c=>[c.id,''])),total:null,notes:'',questions:[],contentVersion:C.version}];
-    const saved=saveRecords(candidate);if(saved.conflict)return;const durable=saved.durable; cleanStudentInputs(); show('setup'); notify(`${s.studentId} marked absent. ${durable?'Saved in this browser.':'Download a backup before closing.'}`,!durable);
+    const saved=await saveRecords(candidate);if(saved.conflict)return;const durable=saved.durable; await cleanStudentInputs(); show('setup'); notify(`${s.studentId} marked absent. ${durable?'Saved to Cloudflare.':'Download a backup before closing.'}`,!durable);
     } catch(error) { notify(error.message,true); } finally {starting=false;}
   }
   function filteredRecords() { return visibleRecords().filter(r=>!$('sessionFilter').value || r.session===$('sessionFilter').value); }
@@ -164,14 +210,14 @@
       const row=el('tr'), student=el('td'), session=el('td'), status=el('td',r.status==='graded'?'Graded':'Absent'), total=el('td',r.total===null?'—':r.total.toFixed(1)), actions=el('td'), wrap=el('div',undefined,'row-actions');
       student.append(el('strong',r.studentId),el('span',r.studentName,'small')); session.append(el('strong',r.session),el('span',r.className,'small'),el('span',new Date(r.date).toLocaleString(),'small'));
       if(r.status==='graded') { const edit=el('button','Edit'); edit.setAttribute('aria-label',`Edit ${r.studentId}`); edit.addEventListener('click',()=>editRecord(r.id)); wrap.append(edit); }
-      const remove=el('button','Delete'); remove.className='danger'; remove.setAttribute('aria-label',`Delete ${r.studentId}`); remove.addEventListener('click',()=>{ if(!confirm(`Delete the record for ${r.studentId}? Download a backup first if you may need it.`)) return;const saved=saveRecords(records.filter(x=>x.id!==r.id));if(!saved.conflict)renderResults(); }); wrap.append(remove); actions.append(wrap); row.append(student,session,status,total,actions); return row;
+      const remove=el('button','Delete'); remove.className='danger'; remove.setAttribute('aria-label',`Delete ${r.studentId}`); remove.addEventListener('click',async()=>{if(saving)return; if(!confirm(`Delete the record for ${r.studentId}? Download a backup first if you may need it.`)) return;const saved=await saveRecords(records.filter(x=>x.id!==r.id));if(!saved.conflict)renderResults(); }); wrap.append(remove);const log=el('button','History');log.addEventListener('click',()=>history(r.id));wrap.append(log); actions.append(wrap); row.append(student,session,status,total,actions); return row;
     }));
   }
   function editRecord(id) {
     const record=records.find(r=>r.id===id);
-    if(!record || draft)return;
+    if(!record || draft || saving)return;
     if(record.contentVersion!==C.version) { notify(`This result uses content version ${record.contentVersion}. Use the matching app version to edit its marks.`,true);return; }
-    draft={...JSON.parse(JSON.stringify(record)),editBaseRecord:JSON.parse(JSON.stringify(record)),edit:true,phase:'grade',elapsedMs:record.durationSeconds*1000,runStarted:null};
+    draft={...JSON.parse(JSON.stringify(record)),editBaseRecord:JSON.parse(JSON.stringify(record)),editRevision:versions.get(id)||0,edit:true,phase:'grade',elapsedMs:record.durationSeconds*1000,runStarted:null};
     notify(''); renderGrade(); persistDraft(); show('grade');
   }
   function download(name,text,type) { const url=URL.createObjectURL(new Blob([text],{type})),a=el('a'); a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000); }
@@ -200,39 +246,41 @@
     } catch { return false; }
   }
   $('setupForm').addEventListener('submit',startExam); $('absentBtn').addEventListener('click',markAbsent);
-  document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{if(!draft){notify('');show(b.dataset.view);}}));
+  document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{if(!draft){notify('');show(b.dataset.view);if(b.dataset.view==='results')refreshGrades().catch(()=>{});}}));
   $('brand').addEventListener('click',e=>{e.preventDefault();if(!draft){notify('');show('setup');}});
   $('pauseBtn').addEventListener('click',()=>{if(!draft || draft.phase!=='exam')return;if(draft.runStarted===null){draft.runStarted=Date.now();persistDraft();updateTimer();}else pause();});
   $('replaceBtn').addEventListener('click',()=>{if(!draft || draft.phase!=='exam' || $('replaceBtn').disabled)return;draft.indices[draft.partIndex]++;recordQuestion();renderExam();persistDraft();});
   $('nextPartBtn').addEventListener('click',()=>{if(!draft || draft.phase!=='exam')return;const now=performance.now();if(now-lastPartAdvance<500)return;lastPartAdvance=now;if(draft.partIndex===C.parts.length-1){finish();return;}draft.partIndex++;draft.partStartedMs=elapsed();recordQuestion();renderExam();persistDraft();});
   $('earlyFinishBtn').addEventListener('click',finish); $('cancelBtn').addEventListener('click',discard); $('cancelGradeBtn').addEventListener('click',discard);
   $('questionViewBtn').addEventListener('click',()=>{document.body.classList.add('question-only');$('teacherViewBtn').hidden=false;}); $('teacherViewBtn').addEventListener('click',()=>{document.body.classList.remove('question-only');$('teacherViewBtn').hidden=true;});
-  $('scoreFields').addEventListener('change',e=>{if(!draft || draft.phase!=='grade' || !C.criteria.some(c=>c.id===e.target.name))return;draft.scores[e.target.name]=Number(e.target.value);updateTotal();persistDraft();});
-  $('notes').addEventListener('input',()=>{if(!draft || draft.phase!=='grade')return;draft.notes=$('notes').value;persistDraft();}); $('gradeForm').addEventListener('submit',saveGrade);
-  $('returnExamBtn').addEventListener('click',()=>{if(!draft || draft.edit || draft.phase!=='grade')return;draft.phase='exam';renderExam();persistDraft();show('exam');notify('The timer is paused. Resume when you are ready.');});
+  $('scoreFields').addEventListener('change',e=>{if(saving || !draft || draft.phase!=='grade' || !C.criteria.some(c=>c.id===e.target.name))return;draft.scores[e.target.name]=Number(e.target.value);updateTotal();persistDraft();});
+  $('notes').addEventListener('input',()=>{if(saving || !draft || draft.phase!=='grade')return;draft.notes=$('notes').value;persistDraft();}); $('gradeForm').addEventListener('submit',saveGrade);
+  $('returnExamBtn').addEventListener('click',()=>{if(saving || !draft || draft.edit || draft.phase!=='grade')return;draft.phase='exam';renderExam();persistDraft();show('exam');notify('The timer is paused. Resume when you are ready.');});
   $('sessionFilter').addEventListener('change',renderResults);
-  $('csvBtn').addEventListener('click',()=>download(`speaking-results-${stamp().slice(0,10)}.csv`,K.csvExport(filteredRecords(),C.criteria),'text/csv;charset=utf-8'));
-  $('backupBtn').addEventListener('click',()=>{download(`speaking-backup-${stamp().slice(0,10)}.json`,JSON.stringify({schemaVersion:1,records:visibleRecords()},null,2),'application/json');unsavedRecords=false;});
+  $('csvBtn').addEventListener('click',async()=>{try{await refreshGrades();download(`speaking-results-${stamp().slice(0,10)}.csv`,K.csvExport(filteredRecords(),C.criteria),'text/csv;charset=utf-8');}catch(error){notify('Export stopped because shared results could not be refreshed. '+error.message,true);}});
+  $('backupBtn').addEventListener('click',async()=>{try{await refreshGrades();download(`speaking-backup-${stamp().slice(0,10)}.json`,JSON.stringify({schemaVersion:1,records:visibleRecords()},null,2),'application/json');}catch(error){notify(error.message,true);}});
   $('importBtn').addEventListener('click',()=>$('importFile').click());
   $('importFile').addEventListener('change',async e=>{
     const file=e.target.files[0]; if(!file)return;
-    try{if(file.size>10*1024*1024)throw Error('The backup is larger than 10 MB.');const imported=K.validateBackup(JSON.parse(await file.text()),C);if(imported.some(r=>!P.canSeeRecord(r)))throw Error('This backup includes another teacher’s records. Ask a manager to restore it.');const known=new Set(records.map(r=>r.id)),added=imported.filter(r=>!known.has(r.id));if(records.length+added.length>10000)throw Error('The combined record limit is 10,000.');if(!confirm(`Add ${added.length} records from this backup? ${imported.length-added.length} existing record IDs will be kept unchanged.`))return;const saved=saveRecords([...records,...added]);if(saved.conflict)return;const durable=saved.durable;renderResults();notify(`Restored ${added.length} records.${durable?'':' Browser storage failed; download a backup before closing.'}`,!durable);}catch(error){notify(`Could not restore the backup: ${error.message}`,true);}finally{e.target.value='';}
+    try{await refreshGrades();if(file.size>10*1024*1024)throw Error('The backup is larger than 10 MB.');const imported=K.validateBackup(JSON.parse(await file.text()),C);if(imported.some(r=>!P.canSeeRecord(r)))throw Error('This backup includes another teacher’s records. Ask a manager to restore it.');const known=new Set(records.map(r=>r.id)),added=imported.filter(r=>!known.has(r.id));if(records.length+added.length>10000)throw Error('The combined record limit is 10,000.');if(!confirm(`Add ${added.length} records from this backup? ${imported.length-added.length} existing record IDs will be kept unchanged.`))return;const saved=await saveRecords([...records,...added]);if(saved.conflict)return;const durable=saved.durable;renderResults();notify(`Restored ${added.length} records.${durable?'':' Browser storage failed; download a backup before closing.'}`,!durable);}catch(error){notify(`Could not restore the backup (earlier confirmed records remain saved): ${error.message}`,true);}finally{e.target.value='';}
   });
   window.addEventListener('beforeunload',event=>{if(draft)persistDraft();if(draft||unsavedRecords){event.preventDefault();event.returnValue='';}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)persistDraft();});
-  window.addEventListener('storage',event=>{
-    if(event.key!==RECORDS_KEY || draft || unsavedRecords || storageBlocked || !sameRecord(records,baselineRecords))return;
-    try { records=event.newValue?K.validateBackup(JSON.parse(event.newValue),C):[];baselineRecords=JSON.parse(JSON.stringify(records));$('resultCount').textContent=visibleRecords().length;if(currentView==='results')renderResults(); }
-    catch { storageError('Records changed in another tab but could not be read. Your current records remain available. Download a backup before closing.'); }
-  });
   buildScoreFields();renderReference();
-  try { const saved=read(RECORDS_KEY);if(saved)records=K.validateBackup(saved,C);baselineRecords=JSON.parse(JSON.stringify(records)); }
+  try { const saved=read(RECORDS_KEY);if(saved)records=K.validateBackup(saved,C);legacyRecords=records.slice();records=[]; }
   catch { storageBlocked=true;storageError('Saved browser data could not be read. It has been kept unchanged. New work will stay in memory only; download a backup before closing.'); }
   try { const s=read(SETTINGS_KEY);if(s){if(['45','60','90','120'].includes(String(s.partSeconds)))$('partSeconds').value=s.partSeconds;} }
   catch { storageError(); }
   try { const saved=read(DRAFT_KEY);if(saved){if(validDraft(saved)){draft=saved;draft.runStarted=null;if(draft.phase==='exam')renderExam();else renderGrade();notify('Your unfinished exam has been restored. The timer is paused.');}else notify('The unfinished exam could not be restored. Saved results are unchanged.',true);} }
   catch { storageError(); }
+  try{pending=read(PENDING_KEY);if(pending){K.validateBackup({schemaVersion:1,records:[pending.record]},C);unsavedRecords=true;}}catch{pending=null;storageError('Pending save could not be read. Keep your backup and ask the manager for help.');}
+  $('discardPendingBtn').addEventListener('click',async()=>{if(saving||draft||!pending||!P.canSeeRecord(pending.record))return;if(!confirm('Stop retrying this request and load the server result? A previously confirmed save will remain in Cloudflare.'))return;pending=null;store(PENDING_KEY,null);unsavedRecords=false;await refreshGrades().catch(()=>{});});
+  $('retryGradeBtn').addEventListener('click',retryPending);
+  $('refreshGradesBtn').addEventListener('click',()=>refreshGrades().catch(()=>{}));
+  $('legacyBackupBtn').addEventListener('click',()=>download('previous-browser-grades.json',JSON.stringify({schemaVersion:1,records:legacyRecords.filter(P.canSeeRecord)},null,2),'application/json'));
+  $('pendingBackupBtn').addEventListener('click',()=>{if(pending&&P.canSeeRecord(pending.record))download('pending-grade.json',JSON.stringify({schemaVersion:1,records:[pending.record]},null,2),'application/json');});
   show(draft?draft.phase:'setup');
-  P.init({getRecords:()=>visibleRecords(),isBusy:()=>!!draft,notify,canUseDraft:user=>!draft || user.role==='manager' || window.EXAM_ROSTER.normalize(draft.teacher)===window.EXAM_ROSTER.normalize(user.teacher),onChange:()=>{show(currentView);}});
+  P.init({getRecords:()=>visibleRecords(),isBusy:()=>!!draft||saving,notify,canUseDraft:user=>!draft || user.role==='manager' || window.EXAM_ROSTER.normalize(draft.teacher)===window.EXAM_ROSTER.normalize(user.teacher),onChange:()=>{const key=userKey();if(key!==gradeUser){gradeUser=key;records=[];versions=new Map();gradesReady=false;$('gradeHistory').hidden=true;if(key)refreshGrades().catch(()=>{});else syncStatus('Sign in to load shared results.');}$('legacyBackupBtn').hidden=!legacyRecords.some(P.canSeeRecord);show(currentView);}});
+  setInterval(()=>{if(P.user&&!draft&&!saving&&document.visibilityState==='visible')refreshGrades().catch(()=>{});},30000);
   setInterval(()=>{if(!draft||draft.phase!=='exam')return;updateTimer();if(Date.now()-lastPersist>2000){persistDraft();lastPersist=Date.now();}},250);
 })();

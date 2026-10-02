@@ -16,7 +16,7 @@ Sign in as Manager, upload, review the preview and session label, then publish. 
 
 Generate an access code for each teacher and share it privately. Codes appear only when created. Generating another code revokes the previous code and sessions. Removing a teacher from the roster revokes access. Teachers sign in, select class/date/student, check the identity, and start. After saving, the app selects the next untested student in that class/date. Idle rosters refresh automatically; changes are checked before starting an exam.
 
-Grades, drafts, and completion labels remain in the current browser. Switching devices retrieves the roster but not grades. Teachers must download CSV and JSON backups after each class. Use one exam tab. A manager sees all grades in their current browser, not other devices. Protect the computer profile and downloaded backups as teaching records.
+Confirmed grades and completion labels are shared through Cloudflare. Teachers see their own records; managers see all teachers' records and can export a complete results spreadsheet. An unfinished exam and any pending save stay on the current device. Wait for **Saved to Cloudflare**; if saving fails, retry after the connection returns. Keep one exam tab open. CSV/JSON exports refresh shared results first. Use History beside a result to review changes and who made them.
 
 ## Cloudflare hosting
 
@@ -26,4 +26,4 @@ The roster supports up to 1,000 students per session, with a 1 MB validated rost
 
 Cloudflare sessions last 12 hours and survive Worker restarts. Rotating a teacher code, removing a teacher, or changing the manager secret invalidates the affected sessions. Expired session and sign-in-limit entries are cleaned hourly. Sign-in attempts are capped at 120 per network per 10-minute window, allowing several teachers on one school network.
 
-Keep the source spreadsheet and manager code securely. Browser grades and their backups remain separate from D1. Use the Cloudflare database export procedure in the setup guide for a server backup. Local Node previews continue to work with MANAGER_CODE and `node server.cjs`, using a separate .data directory.
+Keep the source spreadsheet and manager code securely. Confirmed grades and edit history are also in D1. Unfinished drafts remain on the teacher’s device. Use the Cloudflare database export procedure in the setup guide for a server backup. Use the Cloudflare local preview (`npm start`) to test shared grades; the old Node preview does not support grade synchronization.

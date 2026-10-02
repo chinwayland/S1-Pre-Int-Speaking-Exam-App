@@ -1,4 +1,5 @@
 import R from '../roster.js';
+import {gradesAPI} from './grades.mjs';
 
 const encoder = new TextEncoder();
 const MAX_BODY = 1024 * 1024;
@@ -95,6 +96,7 @@ async function handle(request, env) {
       await env.DB.prepare('DELETE FROM sessions WHERE hash = ?').bind(sessionHash).run(); cookie(''); return json(200, { ok: true });
     }
     if (url.pathname === '/api/roster' && request.method === 'GET') return json(200, { revision: state.revision, session: state.session, updatedAt: state.updatedAt, rows: user.role === 'manager' ? state.rows : state.rows.filter(row => R.normalize(row.teacher) === user.teacher_key) });
+    if (url.pathname === '/api/grades' || url.pathname.startsWith('/api/grades/')) return await gradesAPI({request,env,user,state,readBody,json});
     if (user.role !== 'manager') fail(403, 'Only a manager can change the roster or teacher access codes.');
     if (url.pathname === '/api/roster' && request.method === 'PUT') {
       const input = await readBody(request);
