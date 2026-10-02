@@ -71,6 +71,7 @@
       selected=headers.map(h=>positions.get(normalize(h)));
     }
     const issues=[],rawRows=[],notices=[];
+    const usedIds=new Set();for(let r=1;r<=range.e.r;r++){const cell=sheet[XLSX.utils.encode_cell({r,c:selected[3]})];if(cell?.v!==undefined)usedIds.add(normalize(cell.v));}
     for(let r=1;r<=range.e.r;r++){
       const cells=selected.map(c=>sheet[XLSX.utils.encode_cell({r,c})]);
       if(cells.every(c=>!c||String(c.v??'').trim()===''))continue;
@@ -95,7 +96,7 @@
         }
         row[keys[i]]=String(cell.v).trim();
         if(i===4){const original=row.examDate;row.examDate=dateText(original);if(row.examDate!==original)notices.push(`Row ${r+1}: ${original} → ${row.examDate}`);}
-      });rawRows.push(row);}catch(error){issues.push(`Row ${r+1}: ${error.message}`);}
+      });if(!row.studentId){const base=`Missing Student ID — row ${r+1}`;row.studentId=base;let suffix=2;while(usedIds.has(normalize(row.studentId)))row.studentId=`${base} (${suffix++})`;usedIds.add(normalize(row.studentId));notices.push(`Row ${r+1}: blank Student ID → ${row.studentId}`);}rawRows.push(row);}catch(error){issues.push(`Row ${r+1}: ${error.message}`);}
     }
     if(!rawRows.length&&!issues.length)throw Error('No student rows were found.');
     const checked=rawRows.length?validateRows(rawRows):{rows:[],issues:[]};issues.push(...checked.issues);

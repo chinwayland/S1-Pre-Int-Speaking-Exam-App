@@ -64,3 +64,7 @@ All 42 automated tests passed. Added coverage for arbitrary/reordered headers, i
 ## Flexible timetable dates (October 3, 2026)
 
 All 43 tests passed. Read-only parsing of the supplied S2 timetable with the user’s mapped columns now converts all 11 named-month text dates; only row 43’s missing Student ID remains. Tests cover named months, unambiguous day/month numeric dates, invalid calendar dates, weekday mismatches, ambiguous numeric dates, and conversion notices. Source workbook and production roster were not modified.
+
+## Missing ID placeholders (October 3, 2026)
+
+All 44 tests passed, including multiple blank IDs and collisions with supplied placeholder-like IDs. Read-only parsing of the supplied S2 timetable now returns 373 students, zero issues, and 12 visible adjustments (11 dates and one missing ID). No roster was published during verification.
