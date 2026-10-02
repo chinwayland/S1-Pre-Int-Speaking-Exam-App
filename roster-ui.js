@@ -60,12 +60,28 @@
     if(!user||!row||JSON.stringify({session:roster.session,...row})!==previous)throw Error('The roster changed. Check the selected student’s details, then start again.');
     return {session:roster.session,...row};
   }
+  function clearPreview(){preview=null;$('publishRosterBtn').disabled=true;$('rosterPreview').replaceChildren();$('rosterIssues').replaceChildren();}
+  function mapSheet(){
+    clearPreview();$('fieldMapping').replaceChildren();$('reviewMappingBtn').disabled=true;
+    try{
+      const columns=R.sheetColumns(book,$('worksheetSelect').value,window.XLSX),suggested=R.suggestMapping(columns);
+      R.keys.forEach((key,i)=>{
+        const label=element('label',R.headers[i]),select=document.createElement('select');select.id=`map-${key}`;
+        select.append(new Option('Choose a column…',''),...columns.map(c=>new Option(`${c.letter}: ${c.label||'(no header)'}`,String(c.index))));
+        if(suggested[key]!==undefined)select.value=String(suggested[key]);
+        select.addEventListener('change',()=>{clearPreview();$('uploadSummary').textContent='Mapping changed. Review the mapped rows before publishing.';});
+        label.append(select);$('fieldMapping').append(label);
+      });
+      $('reviewMappingBtn').disabled=false;$('uploadSummary').textContent='Match each app field to a spreadsheet column. Check the suggested matches, then review the rows. Row 1 is treated as headers.';
+    }catch(error){$('uploadSummary').textContent=error.message;}
+  }
   function reviewSheet(){
     preview=null;$('publishRosterBtn').disabled=true;$('rosterPreview').replaceChildren();$('rosterIssues').replaceChildren();
     try{
-      preview=R.parseSheet(book,$('worksheetSelect').value,window.XLSX);
+      const mapping=Object.fromEntries(R.keys.map(key=>[key,$(`map-${key}`).value===''?null:Number($(`map-${key}`).value)]));
+      preview=R.parseSheet(book,$('worksheetSelect').value,window.XLSX,mapping);
       $('rosterIssues').replaceChildren(...preview.issues.slice(0,30).map(x=>element('li',x)));
-      $('uploadSummary').textContent=preview.issues.length?`${preview.issues.length} issues found. Correct the spreadsheet and upload it again. Nothing has been published.`:`${preview.rows.length} students across ${new Set(preview.rows.map(r=>R.normalize(r.teacher))).size} teachers. Review before publishing.`;
+      $('uploadSummary').textContent=preview.issues.length?`${preview.issues.length} issues found. Check the mapping or correct the spreadsheet and upload it again. Nothing has been published.`:`${preview.rows.length} students across ${new Set(preview.rows.map(r=>R.normalize(r.teacher))).size} teachers. Review before publishing.`;
       preview.rows.slice(0,10).forEach(row=>{const tr=element('tr','');tr.append(...R.keys.map(key=>element('td',row[key])));$('rosterPreview').append(tr);});
       if(!preview.issues.length&&!$('rosterSession').value){const date=preview.rows[0].examDate,year=Number(date.slice(0,4))-(Number(date.slice(5,7))<9?1:0);$('rosterSession').value=roster.session||`${year}–${String(year+1).slice(-2)} S1`;}
       $('publishRosterBtn').disabled=preview.issues.length>0;
@@ -83,10 +99,11 @@
       try{if(file.size>5*1024*1024)throw Error('Use a spreadsheet smaller than 5 MB.');if(!/\.(xlsx|xls|csv)$/i.test(file.name))throw Error('Choose an .xlsx, .xls, or .csv file.');
         book=window.XLSX.read(await file.arrayBuffer(),{type:'array',raw:true,cellDates:false,cellNF:true,sheetRows:1002});
         const names=book.SheetNames.filter((name,i)=>!book.Workbook?.Sheets?.[i]?.Hidden);if(!names.length)throw Error('No visible worksheets were found.');
-        $('worksheetSelect').replaceChildren(...names.map(name=>new Option(name,name)));reviewSheet();
+        $('worksheetSelect').replaceChildren(...names.map(name=>new Option(name,name)));mapSheet();
       }catch(error){$('uploadSummary').textContent=`Could not read this file: ${error.message}`;}finally{event.target.value='';}
     });
-    $('worksheetSelect').addEventListener('change',reviewSheet);
+    $('worksheetSelect').addEventListener('change',mapSheet);
+    $('reviewMappingBtn').addEventListener('click',reviewSheet);
     $('publishRosterBtn').addEventListener('click',async()=>{
       if(!preview||preview.issues.length||!$('rosterSession').value.trim()){$('uploadSummary').textContent='Enter an exam session name and correct all upload errors.';return;}
       $('publishRosterBtn').disabled=true;

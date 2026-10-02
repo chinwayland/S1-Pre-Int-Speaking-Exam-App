@@ -27,3 +27,7 @@ The roster supports up to 1,000 students per session, with a 1 MB validated rost
 Cloudflare sessions last 12 hours and survive Worker restarts. Rotating a teacher code, removing a teacher, or changing the manager secret invalidates the affected sessions. Expired session and sign-in-limit entries are cleaned hourly. Sign-in attempts are capped at 120 per network per 10-minute window, allowing several teachers on one school network.
 
 Keep the source spreadsheet and manager code securely. Confirmed grades and edit history are also in D1. Unfinished drafts remain on the teacher’s device. Use the Cloudflare database export procedure in the setup guide for a server backup. Use the Cloudflare local preview (`npm start`) to test shared grades; the old Node preview does not support grade synchronization.
+
+### Spreadsheet column mapping
+
+Headers stay in row 1, but their names may vary. After uploading and choosing a worksheet, match each app field to a source column, then select **Review mapped rows**. Common header names are suggested. Each of the six fields requires a different source column; extra columns are ignored. Column letters distinguish duplicate or blank headers. Changing a mapping clears the preview and disables publication until reviewed again. Existing date, time, student ID, and duplicate checks still apply.

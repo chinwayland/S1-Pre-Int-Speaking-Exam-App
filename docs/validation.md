@@ -56,3 +56,7 @@ Browser testing against local workerd/D1 completed all four exam parts and enter
 All 38 tests passed again. Backed up the existing remote database before applying additive migration 0002_grades.sql. Published Worker version d12f0d54-ccb1-4830-a3a8-a7f743078755. Live HTTPS returns 200 with the shared-grade frontend, unauthenticated grade requests return 401, private source paths return 404, and remote schema inspection confirms both grades and grade_history tables. The earlier TLS issue is resolved. No production roster or grade records were modified during verification.
 
 Authenticated grade saving and recovery were verified in the local Cloudflare runtime as described above. Production manager sign-in was not repeated because the temporary manager-code file from the earlier session is no longer present; the configured production secret was preserved. School-network access remains untested.
+
+## Column mapping (October 3, 2026)
+
+All 42 automated tests passed. Added coverage for arbitrary/reordered headers, ignored extra columns, missing/duplicate/out-of-range mappings, conservative suggestions, duplicate labels, and preservation of Excel date/time and leading-zero ID handling with formula rejection.

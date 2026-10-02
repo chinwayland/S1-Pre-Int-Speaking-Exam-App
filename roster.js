@@ -34,15 +34,34 @@
     });
     return {rows:issues.length?[]:rows.sort((a,b)=>(a.examDate+' '+a.examTime).localeCompare(b.examDate+' '+b.examTime)||a.studentName.localeCompare(b.studentName)),issues};
   }
-  function parseSheet(book,sheetName,XLSX){
+  function sheetColumns(book,sheetName,XLSX){
     const sheet=book.Sheets[sheetName];if(!sheet||!sheet['!ref'])throw Error('This worksheet is empty.');
     const range=XLSX.utils.decode_range(sheet['!fullref']||sheet['!ref']);
     if(range.e.r>1000||range.e.c>49)throw Error('Use at most 1,000 student rows and 50 columns. Put headers in row 1.');
-    const positions=new Map();for(let col=0;col<=range.e.c;col++){const cell=sheet[XLSX.utils.encode_cell({r:0,c:col})];const name=normalize(cell?.v);if(name){if(positions.has(name))throw Error(`Duplicate header: ${cell.v}.`);positions.set(name,col);}}
-    const missing=headers.filter(h=>!positions.has(normalize(h)));if(missing.length)throw Error(`Missing headers in row 1: ${missing.join(', ')}.`);
+    return Array.from({length:range.e.c+1},(_,index)=>({index,label:String(sheet[XLSX.utils.encode_cell({r:0,c:index})]?.v??'').trim(),letter:XLSX.utils.encode_col(index)}));
+  }
+  function suggestMapping(columns){
+    const aliases=[['teacher','teacher name','examiner'],['class','class name'],['student','student name','name'],['student id','student number','student no','id'],['exam date','date','test date'],['exam time','time','test time']];
+    const result={};keys.forEach((key,i)=>{const matches=columns.filter(c=>aliases[i].includes(normalize(c.label)));if(matches.length===1)result[key]=matches[0].index;});return result;
+  }
+  function parseSheet(book,sheetName,XLSX,mapping){
+    const sheet=book.Sheets[sheetName];if(!sheet||!sheet['!ref'])throw Error('This worksheet is empty.');
+    const range=XLSX.utils.decode_range(sheet['!fullref']||sheet['!ref']);
+    if(range.e.r>1000||range.e.c>49)throw Error('Use at most 1,000 student rows and 50 columns. Put headers in row 1.');
+    const columns=sheetColumns(book,sheetName,XLSX);
+    let selected;
+    if(mapping){
+      selected=keys.map(key=>mapping[key]);
+      if(selected.some(col=>!Number.isInteger(col)||col<0||col>=columns.length))throw Error('Choose a spreadsheet column for each of the six app fields.');
+      if(new Set(selected).size!==keys.length)throw Error('Choose a different spreadsheet column for each app field.');
+    }else{
+      const positions=new Map();for(const col of columns){const name=normalize(col.label);if(name){if(positions.has(name))throw Error(`Duplicate header: ${col.label}.`);positions.set(name,col.index);}}
+      const missing=headers.filter(h=>!positions.has(normalize(h)));if(missing.length)throw Error(`Missing headers in row 1: ${missing.join(', ')}.`);
+      selected=headers.map(h=>positions.get(normalize(h)));
+    }
     const issues=[],rawRows=[];
     for(let r=1;r<=range.e.r;r++){
-      const cells=headers.map(h=>sheet[XLSX.utils.encode_cell({r,c:positions.get(normalize(h))})]);
+      const cells=selected.map(c=>sheet[XLSX.utils.encode_cell({r,c})]);
       if(cells.every(c=>!c||String(c.v??'').trim()===''))continue;
       const row={sourceRow:r+1};
       try{cells.forEach((cell,i)=>{
@@ -71,5 +90,5 @@
     return {rows:issues.length?[]:checked.rows,issues};
   }
   function studentKey(row){return normalize(row.studentId);}
-  return Object.freeze({headers,keys,normalize,dateText,timeText,validateRows,parseSheet,studentKey});
+  return Object.freeze({headers,keys,normalize,dateText,timeText,validateRows,sheetColumns,suggestMapping,parseSheet,studentKey});
 });
