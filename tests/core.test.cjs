@@ -150,7 +150,7 @@ test("CSV preserves numeric student ID characters while keeping grades and durat
 
 test("real exam content has all four parts, forty complete questions, and the original weights", () => {
   const realContent = require("../content.js");
-  assert.equal(realContent.version, "2.2");
+  assert.equal(realContent.version, "2.3");
   assert.deepEqual(realContent.parts.map((part) => part.id), ["personality", "past", "present", "future"]);
   const allQuestionIds = [];
   for (const part of realContent.parts) {
@@ -177,7 +177,7 @@ test("real exam content has all four parts, forty complete questions, and the or
     }
   }
   assert.equal(calculateTotal(record().scores, realContent.criteria), 93.3);
-  assert.equal(validateBackup(backup([record()]), realContent)[0].contentVersion, "2.2");
+  assert.equal(validateBackup(backup([record()]), realContent)[0].contentVersion, "2.3");
 });
 
 test('roster metadata survives backups and appears separately from actual exam time in CSV', () => {

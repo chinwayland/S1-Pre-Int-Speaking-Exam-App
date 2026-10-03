@@ -72,3 +72,7 @@ All 44 tests passed, including multiple blank IDs and collisions with supplied p
 ## Forty-question bank (October 3, 2026)
 
 Version 2.2 provides ten complete question/follow-up/example sets per part. Additions draw on the original DOCX themes using A2 wording. Replacement tests traverse four rounds in every part, checking ten unique questions per round and no immediate repeat across round boundaries. Teachers explicitly restart after exhausting a round; restarting preserves the student, part, and timer. Question records retain distinct prompts to keep unlimited replacement rounds within backup limits. Older five-question draft orders remain recoverable.
+
+## Approved rubric revision (October 3, 2026)
+
+Content version 2.3 applies the approved teacher-facing descriptors, short band cues, grading guidance, and an expandable comparison table on the grading screen. Original criterion IDs, 0–3 bands, and 20/15/40/25 weights remain unchanged. All 45 automated tests passed. Teacher calibration with shared sample performances remains necessary to evaluate inter-rater consistency.

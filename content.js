@@ -1,5 +1,5 @@
 (function(root,factory){const content=factory();if(typeof module==="object"&&module.exports)module.exports=content;root.EXAM_CONTENT=content;})(typeof globalThis!=="undefined"?globalThis:this,()=>({
-  "version": "2.2",
+  "version": "2.3",
   "parts": [
     {
       "id": "personality",
@@ -272,10 +272,16 @@
       "label": "Fluency",
       "weight": 20,
       "descriptors": [
-        "You hear no spoken answer.",
-        "You hear single words or short phrases. Long pauses often stop the student's answers.",
-        "You hear short sentences with frequent pauses. You sometimes need to help the student continue.",
-        "You hear short sentences, and the student continues without your help. Allow some thinking pauses."
+        "You hear no assessable speech.",
+        "You hear mostly isolated words or short phrases, with frequent stops.",
+        "You hear short sentences, but pauses often interrupt the answer.",
+        "You hear connected short sentences that carry the answer forward. You allow pauses and self-correction."
+      ],
+      "cues": [
+        "No assessable speech",
+        "Frequent stops",
+        "Interrupted sentences",
+        "Connected sentences"
       ]
     },
     {
@@ -283,32 +289,50 @@
       "label": "Pronunciation",
       "weight": 15,
       "descriptors": [
-        "You cannot understand any spoken words.",
-        "You find many words hard to understand and often need to ask the student to repeat them.",
-        "You understand most words but sometimes need to ask the student to repeat them.",
-        "You understand the speech easily. Allow a few unclear sounds."
+        "You cannot identify enough spoken words to assess pronunciation.",
+        "You understand only some words because of unclear pronunciation.",
+        "You understand most speech, but unclear pronunciation sometimes requires repetition.",
+        "You understand the speech with little effort. You allow an accent and occasional unclear sounds."
+      ],
+      "cues": [
+        "Not assessable",
+        "Some words clear",
+        "Mostly clear",
+        "Easy to understand"
       ]
     },
     {
       "id": "contribution",
-      "label": "Answer content",
+      "label": "Answer development",
       "weight": 40,
       "descriptors": [
-        "You hear no information that answers the questions.",
-        "You hear very little relevant information, even when you help the student.",
-        "You hear answers with some relevant information but few details.",
-        "You hear answers to the main and follow-up questions, with useful details or examples."
+        "You hear no relevant answer.",
+        "You hear brief answers with little or no supporting information.",
+        "You hear relevant answers with some supporting information.",
+        "You hear relevant answers developed with reasons, details, or examples."
+      ],
+      "cues": [
+        "No relevant answer",
+        "Little support",
+        "Some support",
+        "Developed answers"
       ]
     },
     {
       "id": "accuracy",
-      "label": "Grammar and words",
+      "label": "Grammar and vocabulary",
       "weight": 25,
       "descriptors": [
-        "You hear too little English to assess the student's grammar and word choices.",
-        "You often find the meaning hard to understand because of grammar or word-choice errors.",
-        "You usually understand the meaning. You hear simple grammar and words, with some errors.",
-        "You hear simple grammar and words used well. Small errors do not prevent you from understanding the meaning."
+        "You hear too little language to assess grammar and vocabulary.",
+        "You hear a few usable words or patterns, but errors often obscure the message.",
+        "You hear enough simple grammar and vocabulary to communicate, although errors sometimes obscure the message.",
+        "You hear simple grammar and vocabulary used effectively. You understand the message despite errors."
+      ],
+      "cues": [
+        "Not assessable",
+        "Meaning often unclear",
+        "Meaning sometimes unclear",
+        "Effective simple language"
       ]
     }
   ]

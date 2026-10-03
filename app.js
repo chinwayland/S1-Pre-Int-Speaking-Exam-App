@@ -87,7 +87,7 @@
   function buildScoreFields() {
     $('scoreFields').replaceChildren(...C.criteria.map(c => {
       const f = el('fieldset',undefined,'score-card'), legend=el('legend',c.label); legend.append(el('span',`${c.weight}%`,'weight')); f.append(legend);
-      c.descriptors.forEach((text,i) => { const label=el('label',undefined,'score-option'), input=el('input'); input.type='radio'; input.name=c.id; input.value=String(i); input.required=true; label.append(input,el('strong',String(i)),el('span',text)); f.append(label); });
+      c.descriptors.forEach((text,i) => { const label=el('label',undefined,'score-option'), input=el('input'); input.type='radio'; input.name=c.id; input.value=String(i); input.required=true; const description=el('span');description.append(el('strong',c.cues[i]),document.createTextNode(' — '+text));label.append(input,el('strong',String(i)),description); f.append(label); });
       return f;
     }));
   }
@@ -226,6 +226,7 @@
     $('contentVersion').textContent=C.version;
     const head=el('tr'); ['Points',...C.criteria.map(c=>`${c.label} · ${c.weight}%`)].forEach(t=>{const th=el('th',t);th.scope='col';head.append(th);}); $('rubricHead').append(head);
     for(let i=0;i<4;i++) { const row=el('tr'),th=el('th',String(i));th.scope='row';row.append(th,...C.criteria.map(c=>el('td',c.descriptors[i])));$('rubricBody').append(row); }
+    const comparison=$('rubricTable').cloneNode(true);comparison.removeAttribute('id');comparison.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));$('gradeRubric').replaceChildren(comparison);
     C.parts.forEach((p,i)=>{const details=el('details'),summary=el('summary',`Part ${i+1} · ${p.name} · ${p.questions.length} questions`);details.append(summary);p.questions.forEach(q=>{const item=el('div',undefined,'bank-item');item.append(el('strong',q.prompt),el('p',q.followUp),el('p',`Example: ${q.example}`,'example'));details.append(item);});$('questionBank').append(details);});
   }
   function validDraft(d) {
