@@ -41,3 +41,7 @@ On the teacher device, use **Pair student display** and open the generated priva
 With one device, use the same teacher screen to enter provisional marks while asking questions. On wide screens, questions and scoring appear side by side. Do not project this private teacher screen while grading. Question-only mode hides marks but does not permit private grading on that same projected screen.
 
 For paper use, open the paper pack and print questions, the rubric, and blank scoring sheets. A signed-in teacher can load their roster and filter by class before printing. Select a student and use **Enter paper scores** afterward to transcribe marks without replaying the exam. Absences still use **Mark absent**.
+
+### Automatic teacher codes
+
+Roster publication creates codes for teachers who do not already have one and returns a copy-all list containing teacher names, sign-in links, and codes. Copy this list immediately; only hashes are stored on the server. Re-uploading preserves existing teachers’ codes. A manager can explicitly replace all codes to obtain a fresh complete list; the confirmation explains that existing codes and teacher sessions will stop working. Send each teacher only their own entry. No WeChat messages are sent by the app.

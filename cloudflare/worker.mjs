@@ -133,10 +133,18 @@ async function handle(request, env) {
       if (checked.issues.length) fail(400, checked.issues.slice(0, 10).join('\n'));
       const keys = new Set(checked.rows.map(row => R.normalize(row.teacher)));
       const next = { revision: state.revision + 1, session: input.session.trim(), updatedAt: new Date().toISOString(), rows: checked.rows, teacherCodes: Object.fromEntries(Object.entries(state.teacherCodes).filter(([key]) => keys.has(key))) };
+      const accessCodes=[];
+      for(const key of keys){if(!next.teacherCodes[key]){const code=token();next.teacherCodes[key]=await digest(code);accessCodes.push({teacher:next.rows.find(row=>R.normalize(row.teacher)===key).teacher,code});}}
       await save(next);
-      return json(200, { revision: next.revision, session: next.session, updatedAt: next.updatedAt, rows: next.rows });
+      return json(200, { revision: next.revision, session: next.session, updatedAt: next.updatedAt, rows: next.rows, accessCodes });
     }
     if (url.pathname === '/api/teachers' && request.method === 'GET') return json(200, { teachers: [...new Map(state.rows.map(row => [R.normalize(row.teacher), row.teacher])).entries()].map(([key, teacher]) => ({ teacher, hasCode: !!state.teacherCodes[key] })) });
+    if(url.pathname==='/api/teacher-codes'&&request.method==='POST'){
+      const input=await readBody(request);if(input?.expectedRevision!==state.revision)fail(409,'The roster changed. Refresh before replacing codes.');
+      const accessCodes=[],teacherCodes={};
+      for(const [key,teacher] of new Map(state.rows.map(row=>[R.normalize(row.teacher),row.teacher]))){const code=token();teacherCodes[key]=await digest(code);accessCodes.push({teacher,code});}
+      await save({...state,teacherCodes});return json(200,{accessCodes});
+    }
     if (url.pathname === '/api/teacher-code' && request.method === 'POST') {
       const input = await readBody(request), key = R.normalize(input?.teacher);
       if (!teacherName(key)) fail(400, 'Choose a teacher from the published roster.');

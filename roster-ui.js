@@ -15,7 +15,7 @@
     document.body.classList.toggle('signed-in',!!allowed);
     $('authNotice').hidden=!user||allowed;
     $('authNotice').textContent='An unfinished exam in this browser belongs to another teacher. Sign out and use that teacher’s code to finish it. A manager can also finish it.';
-    if(!user){roster={revision:0,session:'',rows:[]};$('newTeacherCode').value='';$('newCodeLabel').hidden=true;}
+    if(!user){$('bulkCodes').value='';$('bulkCodesPanel').hidden=true;roster={revision:0,session:'',rows:[]};$('newTeacherCode').value='';$('newCodeLabel').hidden=true;}
     hooks.onChange?.();
   }
   function optionList(id,values,placeholder){
@@ -88,6 +88,11 @@
       $('publishRosterBtn').disabled=preview.issues.length>0;
     }catch(error){$('uploadSummary').textContent=error.message;}
   }
+  function showCodes(entries){
+    if(!entries?.length){$('bulkCodes').value='';$('bulkCodesPanel').hidden=true;return;}
+    $('bulkCodes').value=entries.map(({teacher,code})=>`${teacher}\nSpeaking exam: ${location.origin}/\nSign in as: Teacher\nAccess code: ${code}`).join('\n\n');
+    $('bulkCodesPanel').hidden=false;$('copyCodesStatus').textContent=`${entries.length} new codes. Copy each teacher’s entry privately.`;
+  }
   async function init(callbacks){
     hooks=callbacks;
     $('loginForm').addEventListener('submit',async event=>{event.preventDefault();const submit=$('loginForm').querySelector('button');submit.disabled=true;$('accessNotice').textContent='Signing in…';try{setUser(await api('/api/login','POST',{role:$('loginRole').value,code:$('accessCode').value}));$('accessCode').value='';await refresh();$('accessNotice').textContent='';}catch(error){$('accessNotice').textContent=error.message;}finally{submit.disabled=false;}});
@@ -105,15 +110,17 @@
     });
     $('worksheetSelect').addEventListener('change',mapSheet);
     $('reviewMappingBtn').addEventListener('click',reviewSheet);
+    $('copyCodesBtn').addEventListener('click',async()=>{try{await navigator.clipboard.writeText($('bulkCodes').value);$('copyCodesStatus').textContent='Copied. Send each teacher only their own entry.';}catch{$('bulkCodes').focus();$('bulkCodes').select();$('copyCodesStatus').textContent='Select and copy the highlighted text manually.';}});
+    $('replaceAllCodesBtn').addEventListener('click',async()=>{if(!confirm('Replace every teacher access code? Existing codes will stop working and teachers will need to sign in again.'))return;const button=$('replaceAllCodesBtn');button.disabled=true;try{const result=await api('/api/teacher-codes','POST',{expectedRevision:roster.revision});showCodes(result.accessCodes);$('newTeacherCode').value='';$('newCodeLabel').hidden=true;await teacherList();}catch(error){$('codeNotice').textContent=error.message;}finally{button.disabled=false;}});
     $('publishRosterBtn').addEventListener('click',async()=>{
       if(!preview||preview.issues.length||!$('rosterSession').value.trim()){$('uploadSummary').textContent='Enter an exam session name and correct all upload errors.';return;}
       $('publishRosterBtn').disabled=true;
-      try{roster=await api('/api/roster','PUT',{expectedRevision:roster.revision,session:$('rosterSession').value.trim(),rows:preview.rows});render();await teacherList();preview=null;book=null;$('rosterReview').hidden=true;hooks.notify(`Published ${roster.rows.length} students. Teachers will receive the updated roster when they refresh or start the next exam.`);}
+      try{roster=await api('/api/roster','PUT',{expectedRevision:roster.revision,session:$('rosterSession').value.trim(),rows:preview.rows});showCodes(roster.accessCodes);delete roster.accessCodes;render();await teacherList();preview=null;book=null;$('rosterReview').hidden=true;hooks.notify(`Published ${roster.rows.length} students. Teachers will receive the updated roster when they refresh or start the next exam.`);}
       catch(error){$('uploadSummary').textContent=error.message;$('publishRosterBtn').disabled=false;}
     });
     $('createCodeBtn').addEventListener('click',async()=>{
       const button=$('createCodeBtn');button.disabled=true;
-      try{const result=await api('/api/teacher-code','POST',{teacher:$('codeTeacher').value});$('newTeacherCode').value=result.code;$('newCodeLabel').hidden=false;$('codeNotice').textContent=`New access code for ${result.teacher}. This code is shown only now. Share it privately with that teacher. Any old code has stopped working.`;await teacherList();}
+      try{const result=await api('/api/teacher-code','POST',{teacher:$('codeTeacher').value});$('bulkCodes').value='';$('bulkCodesPanel').hidden=true;$('newTeacherCode').value=result.code;$('newCodeLabel').hidden=false;$('codeNotice').textContent=`New access code for ${result.teacher}. This code is shown only now. Share it privately with that teacher. Any old code has stopped working.`;await teacherList();}
       catch(error){$('codeNotice').textContent=error.message;}finally{button.disabled=false;}
     });
     try{setUser(await api('/api/me'));await refresh();}catch(error){setUser(null);$('accessNotice').textContent=error.message==='Sign in to access the shared roster.'?'Use the access code provided by your manager.':error.message;}

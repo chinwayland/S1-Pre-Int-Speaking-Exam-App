@@ -80,3 +80,7 @@ Content version 2.3 applies the approved teacher-facing descriptors, short band 
 ## Paired display and live/paper scoring (October 3, 2026)
 
 Added display-room migration and regression coverage for private-field exclusion, invalid links, separate teacher sessions, link rotation, and logout revocation. Browser checks with synthetic students confirmed live marks persist across parts and transfer to final review (93.3), and a second screen shows the current question, part, and paused timer without identities or scores. Reviewed the paper scoring-sheet screen. Physical printing and school-network latency have not been tested.
+
+## Automatic access codes
+
+All 47 tests passed. Added checks that roster publication generates one code per teacher, repeated publication preserves codes, bulk replacement is manager-only and revokes old sessions, and roster reads/database payloads do not expose plaintext codes.
