@@ -33,3 +33,11 @@ Keep the source spreadsheet and manager code securely. Confirmed grades and edit
 Headers stay in row 1, but their names may vary. After uploading and choosing a worksheet, match each app field to a source column, then select **Review mapped rows**. Common header names are suggested. Each of the six fields requires a different source column; extra columns are ignored. Column letters distinguish duplicate or blank headers. Changing a mapping clears the preview and disables publication until reviewed again. Existing date, time, student ID, and duplicate checks still apply.
 
 Dates may also use month names, such as Thursday, June 25, 2026 or 25 Jun 2026. Converted text dates appear in the date conversion review. Numeric dates with ambiguous day/month order require correction; weekday/date mismatches are rejected. Missing years are never inferred. Blank student IDs receive a unique text placeholder such as “Missing Student ID — row 43”; these adjustments appear in the import review. Keep the published roster stable during an exam: reimporting a reordered sheet can change row-based placeholders.
+
+### Device and paper workflows
+
+On the teacher device, use **Pair student display** and open the generated private link on the iPad/projector. Keep the teacher tab open and awake. It controls questions and timing; the other screen receives only the current question, follow-up, and timers. Updates normally take a few seconds. Disconnecting, replacing the link, signing out, credential revocation, or session expiry stops access. Reloading the teacher page requires pairing again. A stale connection hides the question. Provisional scores and notes remain on the teacher device until final grade saving.
+
+With one device, use the same teacher screen to enter provisional marks while asking questions. On wide screens, questions and scoring appear side by side. Do not project this private teacher screen while grading. Question-only mode hides marks but does not permit private grading on that same projected screen.
+
+For paper use, open the paper pack and print questions, the rubric, and blank scoring sheets. A signed-in teacher can load their roster and filter by class before printing. Select a student and use **Enter paper scores** afterward to transcribe marks without replaying the exam. Absences still use **Mark absent**.

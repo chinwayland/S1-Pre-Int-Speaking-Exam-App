@@ -69,8 +69,25 @@
     $('replaceBtn').disabled = false;
     $('replaceBtn').textContent = exhausted ? 'Start over with this part' : 'Replace question';
     $('nextPartBtn').textContent = draft.partIndex === C.parts.length-1 ? 'Finish and grade →' : 'Next part →';
-    updateTimer();
+    renderLiveScores();updateTimer();
   }
+  function renderLiveScores(){
+    $('liveScores').replaceChildren(...C.criteria.map(c=>{const field=el('fieldset'),legend=el('legend',`${c.label} · ${c.weight}%`);field.append(legend);c.descriptors.forEach((text,i)=>{const label=el('label',undefined,'score-option'),radio=el('input');radio.type='radio';radio.name='live-'+c.id;radio.value=i;radio.checked=draft.scores[c.id]===i;radio.addEventListener('change',()=>{draft.scores[c.id]=i;persistDraft();renderLiveTotal();});label.append(radio,el('strong',String(i)),el('span',`${c.cues[i]} — ${text}`));field.append(label);});return field;}));
+    $('liveNotes').value=draft.notes;renderLiveTotal();
+  }
+  function renderLiveTotal(){const total=K.calculateTotal(draft.scores,C.criteria);$('liveTotal').textContent=total===null?'Select four provisional marks.':`Provisional total: ${total.toFixed(1)} / 100`;}
+  $('liveNotes').addEventListener('input',()=>{if(draft){draft.notes=$('liveNotes').value;persistDraft();}});
+  let displayPaired=false,displayBusy=false,lastDisplay='',lastDisplayAt=0;
+  $('pairDisplayBtn').addEventListener('click',async()=>{try{const result=await P.api('/api/display','POST',{});displayPaired=true;lastDisplay='';$('displayLink').value=location.origin+'/student.html#'+result.key;$('displayLinkLabel').hidden=false;$('displayStatus').textContent='Open the link on your student display. Keep this teacher screen private.';}catch(error){$('displayStatus').textContent=error.message;}});
+  $('stopDisplayBtn').addEventListener('click',async()=>{try{await P.api('/api/display','DELETE',{});displayPaired=false;$('displayLinkLabel').hidden=true;$('displayLink').value='';$('displayStatus').textContent='Student display disconnected.';}catch(error){$('displayStatus').textContent=error.message;}});
+  setInterval(async()=>{
+    $('liveDisplayStatus').textContent=displayPaired?$('displayStatus').textContent:'Single-device mode · Keep this scoring screen private.';
+    if(!displayPaired||displayBusy)return;
+    const active=!!(P.user&&draft?.phase==='exam'),q=active?question():null;
+    const payload={active,part:active?`Part ${draft.partIndex+1} · ${C.parts[draft.partIndex].name}`:'',prompt:q?.prompt||'',followUp:q?.followUp||'',elapsedMs:active?elapsed():0,runStarted:active&&draft.runStarted!==null?0:null,partStartedMs:active?draft.partStartedMs:0,partSeconds:active?draft.partSeconds:0};
+    const serialized=JSON.stringify({...payload,elapsedMs:active?draft.elapsedMs:0});if(serialized===lastDisplay&&Date.now()-lastDisplayAt<15000)return;displayBusy=true;
+    try{await P.api('/api/display','PUT',payload);lastDisplay=serialized;lastDisplayAt=Date.now();$('displayStatus').textContent='Student display connected. Only questions and timing are shared.';}catch(error){$('displayStatus').textContent='Display not updated: '+error.message;}finally{displayBusy=false;}
+  },1000);
   function updateTimer() {
     if (!draft || draft.phase !== 'exam') return;
     const time = elapsed(), partTime = Math.max(0,time-draft.partStartedMs);
@@ -247,6 +264,7 @@
       return Number.isInteger(d.partIndex) && d.partIndex>=0 && d.partIndex<C.parts.length && Number.isFinite(d.partStartedMs) && d.partStartedMs>=0 && d.partStartedMs<=d.elapsedMs && [45,60,90,120].includes(d.partSeconds) && Array.isArray(d.indices) && d.indices.length===C.parts.length && plain(d.order) && Object.keys(d.order).length===C.parts.length && Object.keys(d.order).every(key=>C.parts.some(p=>p.id===key)) && C.parts.every((p,i)=>Array.isArray(d.order[p.id]) && (d.order[p.id].length===p.questions.length || (d.contentVersion!==C.version&&d.order[p.id].length===5)) && new Set(d.order[p.id]).size===d.order[p.id].length && d.order[p.id].every(id=>p.questions.some(q=>q.id===id)) && Number.isInteger(d.indices[i]) && d.indices[i]>=0 && d.indices[i]<d.order[p.id].length);
     } catch { return false; }
   }
+  $('paperEntryBtn').addEventListener('click',async()=>{await startExam({preventDefault(){}});if(draft?.phase==='exam'){pause();draft.phase='grade';draft.elapsedMs=0;draft.partStartedMs=0;draft.questions=[];draft.notes='Entered from paper scoring sheet.';renderGrade();persistDraft();show('grade');}});
   $('setupForm').addEventListener('submit',startExam); $('absentBtn').addEventListener('click',markAbsent);
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{if(!draft){notify('');show(b.dataset.view);if(b.dataset.view==='results')refreshGrades().catch(()=>{});}}));
   $('brand').addEventListener('click',e=>{e.preventDefault();if(!draft){notify('');show('setup');}});

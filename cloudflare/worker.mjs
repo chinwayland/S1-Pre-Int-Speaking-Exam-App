@@ -4,7 +4,7 @@ import {gradesAPI} from './grades.mjs';
 const encoder = new TextEncoder();
 const MAX_BODY = 1024 * 1024;
 const MAX_STUDENTS = 1000;
-const publicFiles = new Set(['/', '/index.html', '/styles.css', '/content.js', '/core.js', '/roster.js', '/roster-ui.js', '/app.js', '/vendor/xlsx.full.min.js', '/vendor/SHEETJS-LICENSE.txt']);
+const publicFiles = new Set(['/', '/index.html', '/styles.css', '/content.js', '/core.js', '/roster.js', '/roster-ui.js', '/app.js', '/student', '/student.html', '/student.js', '/paper', '/paper.html', '/paper.js', '/vendor/xlsx.full.min.js', '/vendor/SHEETJS-LICENSE.txt']);
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY',
   'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
@@ -36,6 +36,7 @@ async function cleanup(env) {
   const now = Date.now();
   await env.DB.batch([
     env.DB.prepare('DELETE FROM sessions WHERE expires <= ?').bind(now),
+    env.DB.prepare('DELETE FROM display_rooms WHERE expires <= ? OR owner_session NOT IN (SELECT hash FROM sessions)').bind(now),
     env.DB.prepare('DELETE FROM login_limits WHERE expires <= ?').bind(now)
   ]);
 }
@@ -90,7 +91,32 @@ async function handle(request, env) {
       cookie(secret);
       return json(200, { role: input.role, teacher: teacherName(teacherKey) });
     }
+    if(url.pathname==='/api/display-state'&&request.method==='GET') {
+      const key=request.headers.get('x-display-key')||'';
+      if(!/^[a-f0-9]{64}$/.test(key))fail(401,'This display link is invalid or expired.');
+      const room=await env.DB.prepare('SELECT d.payload, s.role, s.teacher_key, s.credential_hash FROM display_rooms d JOIN sessions s ON s.hash = d.owner_session WHERE d.token_hash = ? AND d.expires > ? AND s.expires > ?').bind(await digest(key),now,now).first();
+      if(!room||(room.role==='teacher'&&!state.rows.some(row=>R.normalize(row.teacher)===room.teacher_key))||!equal(room.credential_hash,room.role==='manager'?managerHash:state.teacherCodes[room.teacher_key]))fail(401,'This display link is invalid or expired.');
+      return json(200,{...JSON.parse(room.payload),serverNow:now});
+    }
     if (!user) fail(401, 'Sign in to access the shared roster.');
+    if(url.pathname==='/api/display') {
+      if(request.method==='POST') {
+        const secret=token();await env.DB.prepare('INSERT INTO display_rooms(owner_session,token_hash,payload,expires) VALUES (?, ?, ?, ?) ON CONFLICT(owner_session) DO UPDATE SET token_hash = excluded.token_hash, payload = excluded.payload, expires = excluded.expires').bind(sessionHash,await digest(secret),'{}',user.expires).run();
+        return json(200,{key:secret});
+      }
+      if(request.method==='DELETE'){await env.DB.prepare('DELETE FROM display_rooms WHERE owner_session = ?').bind(sessionHash).run();return json(200,{ok:true});}
+      if(request.method==='PUT') {
+        const input=await readBody(request),safe={};
+        for(const field of ['part','prompt','followUp']){if(typeof input[field]!=='string'||input[field].length>2000)fail(400,'Invalid display text.');safe[field]=input[field];}
+        for(const field of ['elapsedMs','partStartedMs','partSeconds']){if(!Number.isFinite(input[field])||input[field]<0)fail(400,'Invalid display timer.');safe[field]=input[field];}
+        if(input.runStarted!==null&&(!Number.isFinite(input.runStarted)||input.runStarted<0))fail(400,'Invalid display timer.');
+        safe.runStarted=input.runStarted===null?null:now;safe.active=input.active===true;safe.updatedAt=now;
+        const result=await env.DB.prepare('UPDATE display_rooms SET payload = ? WHERE owner_session = ? AND expires > ?').bind(JSON.stringify(safe),sessionHash,now).run();
+        if(!result.meta.changes)fail(404,'Pair a student display first.');return json(200,{ok:true});
+      }
+      fail(405,'Method not allowed.');
+    }
+
     if (url.pathname === '/api/me' && request.method === 'GET') return json(200, { role: user.role, teacher: teacherName(user.teacher_key) });
     if (url.pathname === '/api/logout' && request.method === 'POST') {
       await env.DB.prepare('DELETE FROM sessions WHERE hash = ?').bind(sessionHash).run(); cookie(''); return json(200, { ok: true });

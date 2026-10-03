@@ -76,3 +76,7 @@ Version 2.2 provides ten complete question/follow-up/example sets per part. Addi
 ## Approved rubric revision (October 3, 2026)
 
 Content version 2.3 applies the approved teacher-facing descriptors, short band cues, grading guidance, and an expandable comparison table on the grading screen. Original criterion IDs, 0–3 bands, and 20/15/40/25 weights remain unchanged. All 45 automated tests passed. Teacher calibration with shared sample performances remains necessary to evaluate inter-rater consistency.
+
+## Paired display and live/paper scoring (October 3, 2026)
+
+Added display-room migration and regression coverage for private-field exclusion, invalid links, separate teacher sessions, link rotation, and logout revocation. Browser checks with synthetic students confirmed live marks persist across parts and transfer to final review (93.3), and a second screen shows the current question, part, and paused timer without identities or scores. Reviewed the paper scoring-sheet screen. Physical printing and school-network latency have not been tested.
